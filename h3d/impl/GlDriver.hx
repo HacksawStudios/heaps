@@ -417,7 +417,8 @@ class GlDriver extends Driver {
 		}
 		if (shader.bufferCount > 0) {
 			s.buffers = [
-				for (i in 0...shader.bufferCount) gl.getUniformBlockIndex(p.p, (shader.vertex ? "vertex_" : "") + "uniform_buffer" + i)
+				for (i in 0...shader.bufferCount)
+					gl.getUniformBlockIndex(p.p, (shader.vertex ? "vertex_" : "") + "uniform_buffer" + i)
 			];
 			var start = 0;
 			if (!s.vertex)
@@ -1295,6 +1296,7 @@ class GlDriver extends Driver {
 			case RGBA32F, R32F, RG32F, RGB32F: new Float32Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen >> 2);
 			case RGBA16F, R16F, RG16F, RGB16F: new Uint16Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen >> 1);
 			case RGB10A2, RG11B10UF: new Uint32Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen >> 2);
+			case ETC(_), PVRTC(_): new Uint8Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset);
 			default: new Uint8Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen);
 		}
 		switch (t.format) {
@@ -1759,10 +1761,10 @@ class GlDriver extends Driver {
 			hxd.PixelFormat.ASTC();
 		} else if (dxtSupported) {
 			hxd.PixelFormat.S3TC();
-		} else if (etcSupported) {
-			hxd.PixelFormat.ETC();
 		} else if (pvrtcSupported) {
 			hxd.PixelFormat.PVRTC();
+		} else if (etcSupported) {
+			hxd.PixelFormat.ETC();
 		} else {
 			null;
 		}
