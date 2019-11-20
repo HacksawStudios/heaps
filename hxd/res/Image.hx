@@ -219,18 +219,12 @@ class Image extends Resource {
 
 			case 0x4273:
 				format = Basis;
-				f.skip(12);
-				var slices = f.readUInt24();
-				var images = f.readUInt24();
-				var bFormat = f.readInt8();
-				f.skip(44);
+				f.skip(63);
 				var slicesPos = f.readInt32();
-				f.skip(slicesPos - 48);
-				var imageIndex = f.readUInt24();
-				var levelIndex = f.readInt8();
-				var flags = f.readInt8();
+				f.skip(slicesPos - 42);
 				width = f.readUInt16();
 				height = f.readUInt16();
+
 			case _ if (entry.extension == "tga"):
 				inf.dataFormat = Tga;
 				inf.pixelFormat = ARGB;
@@ -251,308 +245,300 @@ class Image extends Resource {
 						throw "RAW format does not match 32 bit per components on " + size + "x" + size;
 				}
 				inf.width = inf.height = size;
-
 			default:
 				throw "Unsupported texture format " + entry.path;
 		}
 
-		f.close();
-		if (inf.pixelFormat == null)
-			throw "Unsupported internal format (" + entry.path + ")";
-
-		return inf;
-	}
-
-	public function getPixels(?fmt:PixelFormat, ?flipY:Bool, ?index:Int) {
-		var pixels:hxd.Pixels;
-		if (index == null)
-			index = 0;
-		switch (getInfo().dataFormat) {
-			case Png:
-				var bytes = entry.getBytes(); // using getTmpBytes cause bug in E2
-				#if hl
-				if (fmt == null)
-					fmt = inf.pixelFormat;
-				pixels = decodePNG(bytes, inf.width, inf.height, fmt, flipY);
-				if (pixels == null)
-					throw "Failed to decode PNG " + entry.path;
-				#else
-				if (inf.pixelFormat != BGRA)
-					throw "No support to decode " + inf.pixelFormat + " on this platform (" + entry.path + ")";
-				var png = new format.png.Reader(new haxe.io.BytesInput(bytes));
-				png.checkCRC = false;
-				// we only support BGRA decoding here
-				pixels = Pixels.alloc(inf.width, inf.height, BGRA);
-				var pdata = png.read();
-				format.png.Tools.extract32(pdata, pixels.bytes, flipY);
-				if (flipY)
-					pixels.flags.set(FlipY);
-				#end
-			case Gif:
-				var bytes = entry.getBytes();
-				var gif = new format.gif.Reader(new haxe.io.BytesInput(bytes)).read();
-				if (fmt == RGBA)
-					pixels = new Pixels(inf.width, inf.height, format.gif.Tools.extractFullRGBA(gif, 0), RGBA);
-				else
-					pixels = new Pixels(inf.width, inf.height, format.gif.Tools.extractFullBGRA(gif, 0), BGRA);
-			case Jpg:
-				var bytes = entry.getBytes();
-				#if hl
-				if (fmt == null)
-					fmt = inf.pixelFormat;
-				pixels = decodeJPG(bytes, inf.width, inf.height, fmt, flipY);
-				if (pixels == null)
-					throw "Failed to decode JPG " + entry.path;
-				#else
-				if (inf.pixelFormat != BGRA)
-					throw "No support to decode " + inf.pixelFormat + " on this platform (" + entry.path + ")";
-				var p = try NanoJpeg.decode(bytes) catch (e:Dynamic) throw "Failed to decode JPG " + entry.path + " (" + e + ")";
-				pixels = new Pixels(p.width, p.height, p.pixels, BGRA);
-				#end
-			case Tga:
-				var bytes = entry.getBytes();
-				var r = new format.tga.Reader(new haxe.io.BytesInput(bytes)).read();
-				if (r.header.imageType != UncompressedTrueColor || r.header.bitsPerPixel != 32)
-					throw "Not supported TGA " + r.header.imageType + "/" + r.header.bitsPerPixel;
-				var w = r.header.width;
-				var h = r.header.height;
-				pixels = hxd.Pixels.alloc(w, h, ARGB);
-				var access:hxd.Pixels.PixelsARGB = pixels;
-				var p = 0;
-				for (y in 0...h)
-					for (x in 0...w) {
-						var c = r.imageData[x + y * w];
-						access.setPixel(x, y, c);
+		public function getPixels(?fmt:PixelFormat, ?flipY:Bool, ?index:Int) {
+			var pixels:hxd.Pixels;
+			if (index == null)
+				index = 0;
+			switch (getInfo().dataFormat) {
+				case Png:
+					var bytes = entry.getBytes(); // using getTmpBytes cause bug in E2
+					#if hl
+					if (fmt == null)
+						fmt = inf.pixelFormat;
+					pixels = decodePNG(bytes, inf.width, inf.height, fmt, flipY);
+					if (pixels == null)
+						throw "Failed to decode PNG " + entry.path;
+					#else
+					if (inf.pixelFormat != BGRA)
+						throw "No support to decode " + inf.pixelFormat + " on this platform (" + entry.path + ")";
+					var png = new format.png.Reader(new haxe.io.BytesInput(bytes));
+					png.checkCRC = false;
+					// we only support BGRA decoding here
+					pixels = Pixels.alloc(inf.width, inf.height, BGRA);
+					var pdata = png.read();
+					format.png.Tools.extract32(pdata, pixels.bytes, flipY);
+					if (flipY)
+						pixels.flags.set(FlipY);
+					#end
+				case Gif:
+					var bytes = entry.getBytes();
+					var gif = new format.gif.Reader(new haxe.io.BytesInput(bytes)).read();
+					if (fmt == RGBA)
+						pixels = new Pixels(inf.width, inf.height, format.gif.Tools.extractFullRGBA(gif, 0), RGBA);
+					else
+						pixels = new Pixels(inf.width, inf.height, format.gif.Tools.extractFullBGRA(gif, 0), BGRA);
+				case Jpg:
+					var bytes = entry.getBytes();
+					#if hl
+					if (fmt == null)
+						fmt = inf.pixelFormat;
+					pixels = decodeJPG(bytes, inf.width, inf.height, fmt, flipY);
+					if (pixels == null)
+						throw "Failed to decode JPG " + entry.path;
+					#else
+					if (inf.pixelFormat != BGRA)
+						throw "No support to decode " + inf.pixelFormat + " on this platform (" + entry.path + ")";
+					var p = try NanoJpeg.decode(bytes) catch (e:Dynamic) throw "Failed to decode JPG " + entry.path + " (" + e + ")";
+					pixels = new Pixels(p.width, p.height, p.pixels, BGRA);
+					#end
+				case Tga:
+					var bytes = entry.getBytes();
+					var r = new format.tga.Reader(new haxe.io.BytesInput(bytes)).read();
+					if (r.header.imageType != UncompressedTrueColor || r.header.bitsPerPixel != 32)
+						throw "Not supported TGA " + r.header.imageType + "/" + r.header.bitsPerPixel;
+					var w = r.header.width;
+					var h = r.header.height;
+					pixels = hxd.Pixels.alloc(w, h, ARGB);
+					var access:hxd.Pixels.PixelsARGB = pixels;
+					var p = 0;
+					for (y in 0...h)
+						for (x in 0...w) {
+							var c = r.imageData[x + y * w];
+							access.setPixel(x, y, c);
+						}
+					switch (r.header.imageOrigin) {
+						case BottomLeft: pixels.flags.set(FlipY);
+						case TopLeft: // nothing
+						default: throw "Not supported " + r.header.imageOrigin;
 					}
-				switch (r.header.imageOrigin) {
-					case BottomLeft: pixels.flags.set(FlipY);
-					case TopLeft: // nothing
-					default: throw "Not supported " + r.header.imageOrigin;
-				}
-			case Dds:
-				var pos = 128;
-				var mipLevel = 0;
-				if (inf.flags.has(Dxt10Header))
-					pos += 20;
-				if (index > 0) {
-					var bpp = hxd.Pixels.calcStride(1, inf.pixelFormat);
-					var layer = Std.int(index / inf.mipLevels);
-					mipLevel = index % inf.mipLevels;
-					var totSize = 0;
-					for (i in 0...inf.mipLevels) {
-						var w = inf.width >> i;
-						var h = inf.height >> i;
-						if (w == 0)
-							w = 1;
-						if (h == 0)
-							h = 1;
+				case Dds:
+					var pos = 128;
+					var mipLevel = 0;
+					if (inf.flags.has(Dxt10Header))
+						pos += 20;
+					if (index > 0) {
+						var bpp = hxd.Pixels.calcStride(1, inf.pixelFormat);
+						var layer = Std.int(index / inf.mipLevels);
+						mipLevel = index % inf.mipLevels;
+						var totSize = 0;
+						for (i in 0...inf.mipLevels) {
+							var w = inf.width >> i;
+							var h = inf.height >> i;
+							if (w == 0)
+								w = 1;
+							if (h == 0)
+								h = 1;
+							var size = hxd.Pixels.calcDataSize(w, h, inf.pixelFormat);
+							totSize += size;
+							if (i < mipLevel)
+								pos += size
+							else if (layer == 0)
+								break;
+						}
+						pos += totSize * layer;
+					}
+					var bytes;
+					var w = inf.width >> mipLevel;
+					var h = inf.height >> mipLevel;
+					if (w == 0)
+						w = 1;
+					if (h == 0)
+						h = 1;
+					if (inf.mipLevels == 1 && !inf.flags.has(IsCube)) {
+						bytes = entry.getBytes();
+					} else {
 						var size = hxd.Pixels.calcDataSize(w, h, inf.pixelFormat);
-						totSize += size;
-						if (i < mipLevel)
-							pos += size
-						else if (layer == 0)
-							break;
+						entry.open();
+						entry.skip(pos);
+						bytes = haxe.io.Bytes.alloc(size);
+						entry.read(bytes, 0, size);
+						entry.close();
+						pos = 0;
 					}
-					pos += totSize * layer;
-				}
-				var bytes;
-				var w = inf.width >> mipLevel;
-				var h = inf.height >> mipLevel;
-				if (w == 0)
-					w = 1;
-				if (h == 0)
-					h = 1;
-				if (inf.mipLevels == 1 && !inf.flags.has(IsCube)) {
-					bytes = entry.getBytes();
-				} else {
-					var size = hxd.Pixels.calcDataSize(w, h, inf.pixelFormat);
-					entry.open();
-					entry.skip(pos);
-					bytes = haxe.io.Bytes.alloc(size);
-					entry.read(bytes, 0, size);
-					entry.close();
-					pos = 0;
-				}
-				pixels = new hxd.Pixels(w, h, bytes, inf.pixelFormat, pos);
-			case Raw:
-				var bytes = entry.getBytes();
-				pixels = new hxd.Pixels(inf.width, inf.height, bytes, inf.pixelFormat);
-			case Hdr:
-				var data = hxd.fmt.hdr.Reader.decode(entry.getBytes(), false);
-				pixels = new hxd.Pixels(data.width, data.height, data.bytes, inf.pixelFormat);
-			case Basis:
-				#if js
-				var bytes = entry.getBytes();
-				var driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
-				var f = switch (driver.checkTextureSupport()) {
-					case hxd.PixelFormat.S3TC(_): hxd.PixelFormat.S3TC(inf.bc);
-					case hxd.PixelFormat.ETC(_): hxd.PixelFormat.ETC(0);
-					case hxd.PixelFormat.ASTC(_): hxd.PixelFormat.ASTC(10);
-					case hxd.PixelFormat.PVRTC(_): hxd.PixelFormat.PVRTC(9);
-					default: throw 'Unsupported basis texture';
-				}
-				pixels = new hxd.Pixels(inf.width, inf.height, bytes, f);
-				#else
-				throw 'Basis only supported on js target';
-				#end
-		}
-		if (fmt != null)
-			pixels.convert(fmt);
-		if (flipY != null)
-			pixels.setFlip(flipY);
-		return pixels;
-	}
-
-	#if hl
-	static function decodeJPG(src:haxe.io.Bytes, width:Int, height:Int, requestedFmt:hxd.PixelFormat, flipY:Bool) {
-		var outFmt = requestedFmt;
-		var ifmt:hl.Format.PixelFormat = switch (requestedFmt) {
-			case RGBA: RGBA;
-			case BGRA: BGRA;
-			case ARGB: ARGB;
-			default:
-				outFmt = BGRA;
-				BGRA;
-		};
-		var dst = haxe.io.Bytes.alloc(width * height * 4);
-		if (!hl.Format.decodeJPG(src.getData(), src.length, dst.getData(), width, height, width * 4, ifmt, (flipY ? 1 : 0)))
-			return null;
-		var pix = new hxd.Pixels(width, height, dst, outFmt);
-		if (flipY)
-			pix.flags.set(FlipY);
-		return pix;
-	}
-
-	static function decodePNG(src:haxe.io.Bytes, width:Int, height:Int, requestedFmt:hxd.PixelFormat, flipY:Bool) {
-		var outFmt = requestedFmt;
-		var ifmt:hl.Format.PixelFormat = switch (requestedFmt) {
-			case RGBA: RGBA;
-			case BGRA: BGRA;
-			case ARGB: ARGB;
-			case R16U: cast 12;
-			case RGB16U: cast 13;
-			case RGBA16U: cast 14;
-			default:
-				outFmt = BGRA;
-				BGRA;
-		};
-		var stride = 4; // row_stride is the step, in png_byte or png_uint_16 units	as appropriate, between adjacent rows
-		var pxsize = 4;
-		switch (outFmt) {
-			case R16U:
-				stride = 1;
-				pxsize = 2;
-			case RGB16U:
-				stride = 3;
-				pxsize = 6;
-			case RGBA16U:
-				stride = 4;
-				pxsize = 8;
-			default:
-		}
-		var dst = haxe.io.Bytes.alloc(width * height * pxsize);
-		if (!hl.Format.decodePNG(src.getData(), src.length, dst.getData(), width, height, width * stride, ifmt, (flipY ? 1 : 0)))
-			return null;
-		var pix = new hxd.Pixels(width, height, dst, outFmt);
-		if (flipY)
-			pix.flags.set(FlipY);
-		return pix;
-	}
-	#end
-
-	public function toBitmap():hxd.BitmapData {
-		getInfo();
-		var bmp = new hxd.BitmapData(inf.width, inf.height);
-		var pixels = getPixels();
-		bmp.setPixels(pixels);
-		pixels.dispose();
-		return bmp;
-	}
-
-	function watchCallb() {
-		var w = inf.width, h = inf.height;
-		inf = null;
-		var s = getSize();
-		if (w != s.width || h != s.height)
-			tex.resize(s.width, s.height);
-		tex.realloc = null;
-		loadTexture();
-	}
-
-	function loadTexture() {
-		if (!getFormat().useAsyncDecode && !DEFAULT_ASYNC) {
-			function load() {
-				// immediately loading the PNG is faster than going through loadBitmap
-				tex.alloc();
-				for (layer in 0...tex.layerCount) {
-					for (mip in 0...inf.mipLevels) {
-						var pixels = getPixels(tex.format, null, layer * inf.mipLevels + mip);
-						tex.uploadPixels(pixels, mip, layer);
-						pixels.dispose();
+					pixels = new hxd.Pixels(w, h, bytes, inf.pixelFormat, pos);
+				case Raw:
+					var bytes = entry.getBytes();
+					pixels = new hxd.Pixels(inf.width, inf.height, bytes, inf.pixelFormat);
+				case Hdr:
+					var data = hxd.fmt.hdr.Reader.decode(entry.getBytes(), false);
+					pixels = new hxd.Pixels(data.width, data.height, data.bytes, inf.pixelFormat);
+				case Basis:
+					#if js
+					var bytes = entry.getBytes();
+					var driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
+					var f = switch (driver.checkTextureSupport()) {
+						case hxd.PixelFormat.S3TC(_): hxd.PixelFormat.S3TC(inf.bc);
+						case hxd.PixelFormat.ETC(_): hxd.PixelFormat.ETC(0);
+						case hxd.PixelFormat.ASTC(_): hxd.PixelFormat.ASTC(10);
+						case hxd.PixelFormat.PVRTC(_): hxd.PixelFormat.PVRTC(9);
+						default: throw 'Unsupported basis texture';
 					}
-				}
-				tex.realloc = loadTexture;
-				if (ENABLE_AUTO_WATCH)
-					watch(watchCallb);
+					pixels = new hxd.Pixels(inf.width, inf.height, bytes, f);
+					#else
+					throw 'Basis only supported on js target';
+					#end
 			}
-			if (entry.isAvailable)
-				load();
-			else
-				entry.load(load);
-		} else {
-			// use native decoding
-			tex.flags.set(Loading);
-			entry.loadBitmap(function(bmp) {
-				var bmp = bmp.toBitmap();
-				tex.alloc();
-				tex.uploadBitmap(bmp);
-				bmp.dispose();
-				tex.realloc = loadTexture;
-				tex.flags.unset(Loading);
-				@:privateAccess if (tex.waitLoads != null) {
-					var arr = tex.waitLoads;
-					tex.waitLoads = null;
-					for (f in arr)
-						f();
+			if (fmt != null)
+				pixels.convert(fmt);
+			if (flipY != null)
+				pixels.setFlip(flipY);
+			return pixels;
+		}
+
+		#if hl
+		static function decodeJPG(src:haxe.io.Bytes, width:Int, height:Int, requestedFmt:hxd.PixelFormat, flipY:Bool) {
+			var outFmt = requestedFmt;
+			var ifmt:hl.Format.PixelFormat = switch (requestedFmt) {
+				case RGBA: RGBA;
+				case BGRA: BGRA;
+				case ARGB: ARGB;
+				default:
+					outFmt = BGRA;
+					BGRA;
+			};
+			var dst = haxe.io.Bytes.alloc(width * height * 4);
+			if (!hl.Format.decodeJPG(src.getData(), src.length, dst.getData(), width, height, width * 4, ifmt, (flipY ? 1 : 0)))
+				return null;
+			var pix = new hxd.Pixels(width, height, dst, outFmt);
+			if (flipY)
+				pix.flags.set(FlipY);
+			return pix;
+		}
+
+		static function decodePNG(src:haxe.io.Bytes, width:Int, height:Int, requestedFmt:hxd.PixelFormat, flipY:Bool) {
+			var outFmt = requestedFmt;
+			var ifmt:hl.Format.PixelFormat = switch (requestedFmt) {
+				case RGBA: RGBA;
+				case BGRA: BGRA;
+				case ARGB: ARGB;
+				case R16U: cast 12;
+				case RGB16U: cast 13;
+				case RGBA16U: cast 14;
+				default:
+					outFmt = BGRA;
+					BGRA;
+			};
+			var stride = 4; // row_stride is the step, in png_byte or png_uint_16 units	as appropriate, between adjacent rows
+			var pxsize = 4;
+			switch (outFmt) {
+				case R16U:
+					stride = 1;
+					pxsize = 2;
+				case RGB16U:
+					stride = 3;
+					pxsize = 6;
+				case RGBA16U:
+					stride = 4;
+					pxsize = 8;
+				default:
+			}
+			var dst = haxe.io.Bytes.alloc(width * height * pxsize);
+			if (!hl.Format.decodePNG(src.getData(), src.length, dst.getData(), width, height, width * stride, ifmt, (flipY ? 1 : 0)))
+				return null;
+			var pix = new hxd.Pixels(width, height, dst, outFmt);
+			if (flipY)
+				pix.flags.set(FlipY);
+			return pix;
+		}
+		#end
+
+		public function toBitmap():hxd.BitmapData {
+			getInfo();
+			var bmp = new hxd.BitmapData(inf.width, inf.height);
+			var pixels = getPixels();
+			bmp.setPixels(pixels);
+			pixels.dispose();
+			return bmp;
+		}
+
+		function watchCallb() {
+			var w = inf.width, h = inf.height;
+			inf = null;
+			var s = getSize();
+			if (w != s.width || h != s.height)
+				tex.resize(s.width, s.height);
+			tex.realloc = null;
+			loadTexture();
+		}
+
+		function loadTexture() {
+			if (!getFormat().useAsyncDecode && !DEFAULT_ASYNC) {
+				function load() {
+					// immediately loading the PNG is faster than going through loadBitmap
+					tex.alloc();
+					for (layer in 0...tex.layerCount) {
+						for (mip in 0...inf.mipLevels) {
+							var pixels = getPixels(tex.format, null, layer * inf.mipLevels + mip);
+							tex.uploadPixels(pixels, mip, layer);
+							pixels.dispose();
+						}
+					}
+					tex.realloc = loadTexture;
+					if (ENABLE_AUTO_WATCH)
+						watch(watchCallb);
 				}
+				if (entry.isAvailable)
+					load();
+				else
+					entry.load(load);
+			} else {
+				// use native decoding
+				tex.flags.set(Loading);
+				entry.loadBitmap(function(bmp) {
+					var bmp = bmp.toBitmap();
+					tex.alloc();
+					tex.uploadBitmap(bmp);
+					bmp.dispose();
+					tex.realloc = loadTexture;
+					tex.flags.unset(Loading);
+					@:privateAccess if (tex.waitLoads != null) {
+						var arr = tex.waitLoads;
+						tex.waitLoads = null;
+						for (f in arr)
+							f();
+					}
 
-				if (ENABLE_AUTO_WATCH)
-					watch(watchCallb);
-			});
+					if (ENABLE_AUTO_WATCH)
+						watch(watchCallb);
+				});
+			}
 		}
-	}
 
-	public function toTexture():h3d.mat.Texture {
-		if (tex != null)
+		public function toTexture():h3d.mat.Texture {
+			if (tex != null)
+				return tex;
+			getInfo();
+			var flags:Array<h3d.mat.Data.TextureFlags> = [NoAlloc];
+			var fmt = inf.pixelFormat;
+			// for these formats, we will ignore the pixel format and always use native one
+			// our decoders most likely allows to decode in correct format anyway
+			if (fmt == BGRA || fmt == ARGB || fmt == RGBA)
+				fmt = h3d.mat.Texture.nativeFormat;
+			if (inf.flags.has(IsCube))
+				flags.push(Cube);
+			if (inf.mipLevels > 1) {
+				flags.push(MipMapped);
+				flags.push(ManualMipMapGen);
+			}
+			if (fmt == R16U)
+				throw "Unsupported texture format " + fmt + " for " + entry.path;
+			tex = new h3d.mat.Texture(inf.width, inf.height, flags, fmt);
+			if (DEFAULT_FILTER != Linear)
+				tex.filter = DEFAULT_FILTER;
+			tex.setName(entry.path);
+			setupTextureFlags(tex);
+			loadTexture();
 			return tex;
-		getInfo();
-		var flags:Array<h3d.mat.Data.TextureFlags> = [NoAlloc];
-		var fmt = inf.pixelFormat;
-		// for these formats, we will ignore the pixel format and always use native one
-		// our decoders most likely allows to decode in correct format anyway
-		if (fmt == BGRA || fmt == ARGB || fmt == RGBA)
-			fmt = h3d.mat.Texture.nativeFormat;
-		if (inf.flags.has(IsCube))
-			flags.push(Cube);
-		if (inf.mipLevels > 1) {
-			flags.push(MipMapped);
-			flags.push(ManualMipMapGen);
 		}
-		if (fmt == R16U)
-			throw "Unsupported texture format " + fmt + " for " + entry.path;
-		tex = new h3d.mat.Texture(inf.width, inf.height, flags, fmt);
-		if (DEFAULT_FILTER != Linear)
-			tex.filter = DEFAULT_FILTER;
-		tex.setName(entry.path);
-		setupTextureFlags(tex);
-		loadTexture();
-		return tex;
-	}
 
-	public function toTile():h2d.Tile {
-		getInfo();
-		return h2d.Tile.fromTexture(toTexture()).sub(0, 0, inf.width, inf.height);
-	}
+		public function toTile():h2d.Tile {
+			getInfo();
+			return h2d.Tile.fromTexture(toTexture()).sub(0, 0, inf.width, inf.height);
+		}
 
-	public static dynamic function setupTextureFlags(tex:h3d.mat.Texture) {}
-}
+		public static dynamic function setupTextureFlags(tex:h3d.mat.Texture) {}
+	}
