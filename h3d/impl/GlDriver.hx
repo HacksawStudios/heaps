@@ -7,6 +7,7 @@ import h3d.mat.Stencil;
 #if (js || hlsdl || usegl)
 #if js
 import hxd.impl.TypedArray;
+import js.html.webgl.RenderingContext;
 private typedef GL = js.html.webgl.GL;
 
 private extern class GL2 extends js.html.webgl.GL {
@@ -139,7 +140,8 @@ class GlDriver extends Driver {
 	public var gl:GL2;
 
 	public static var ALLOW_WEBGL2 = true;
-
+	// Set to 'highp' to get high precision on devices that support it
+	public static var MAX_PRECISION = 'mediump';
 	public var textureSupport:hxd.PixelFormat;
 	#end
 
@@ -432,9 +434,14 @@ class GlDriver extends Driver {
 		var p = programs.get(shader.id);
 		if (p == null) {
 			p = new CompiledProgram();
-			var glout = makeCompiler();
-			p.vertex = compileShader(glout, shader.vertex);
-			p.fragment = compileShader(glout, shader.fragment);
+			var glout = new ShaderCompiler();
+			glout.glES = glES;
+			glout.version = shaderVersion; 
+			#if js
+			glout.precision = getMaxPrecision();
+			#end
+			p.vertex = compileShader(glout,shader.vertex);
+			p.fragment = compileShader(glout,shader.fragment);
 
 			p.p = gl.createProgram();
 			#if ((hlsdl || usegl) && !hlmesa)
@@ -1749,7 +1756,21 @@ class GlDriver extends Driver {
 		#end
 	}
 
+	
+	
 	#if js
+	/**
+		Get the max supported precision to use for shaders
+		Limited by MAX_PRECISION value.
+	**/
+	public function getMaxPrecision() {
+		if ( gl.getShaderPrecisionFormat( RenderingContext.VERTEX_SHADER, RenderingContext.HIGH_FLOAT ).precision > 0 &&
+			gl.getShaderPrecisionFormat( RenderingContext.FRAGMENT_SHADER, RenderingContext.HIGH_FLOAT ).precision > 0 ) {
+			return MAX_PRECISION;
+		}
+		return 'mediump';
+	}
+
 	public function checkTextureSupport():hxd.PixelFormat {
 		var astcSupported = gl.getExtension('WEBGL_compressed_texture_astc') != null;
 		var dxtSupported = gl.getExtension('WEBGL_compressed_texture_s3tc') != null;
