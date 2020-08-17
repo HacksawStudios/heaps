@@ -7,8 +7,7 @@ import h3d.mat.Stencil;
 #if (js || hlsdl || usegl)
 #if js
 import hxd.impl.TypedArray;
-import js.html.webgl.RenderingContext;
-private typedef GL = js.html.webgl.GL;
+import js.html.webgl.RenderingContext;private typedef GL = js.html.webgl.GL;
 
 private extern class GL2 extends js.html.webgl.GL {
 	// webgl2
@@ -63,8 +62,7 @@ private typedef Program = js.html.webgl.Program;
 private typedef GLShader = js.html.webgl.Shader;
 private typedef Framebuffer = js.html.webgl.Framebuffer;
 #elseif hlsdl
-import sdl.GL;
-private typedef Uniform = sdl.GL.Uniform;
+import sdl.GL;private typedef Uniform = sdl.GL.Uniform;
 private typedef Program = sdl.GL.Program;
 private typedef GLShader = sdl.GL.Shader;
 private typedef Framebuffer = sdl.GL.Framebuffer;
@@ -188,6 +186,8 @@ class GlDriver extends Driver {
 	var isIntelGpu:Bool;
 
 	static var BLACK = new h3d.Vector(0, 0, 0, 0);
+
+	static var BLACK = new h3d.Vector(0,0,0,0);
 
 	/**
 		Perform OUT_OF_MEMORY checks when allocating textures/buffers.

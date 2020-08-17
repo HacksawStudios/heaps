@@ -1,6 +1,6 @@
 package h2d.domkit;
-import domkit.Property;
 import domkit.CssValue;
+import domkit.Property;
 
 class CustomParser extends CssValue.ValueParser {
 

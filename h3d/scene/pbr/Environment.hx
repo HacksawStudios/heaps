@@ -358,6 +358,9 @@ class Environment {
 
 	function computeIrradiance() {
 
+		if( env == null )
+			equiToCube();
+
 		var screen = new h3d.pass.ScreenFx(new IrradShader());
 		screen.shader.samplesBits = sampleBits;
 		screen.shader.envMap = env;

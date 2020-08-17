@@ -334,7 +334,6 @@ class RenderContext extends h3d.impl.RenderContext {
 		flush();
 		engine.pushTarget(t);
 		initShaders(baseShaderList);
-
 		var entry = targetsStack[targetsStackIndex++];
 		if ( entry == null ) {
 			entry = { t: null, va: 0, vb: 0, vc: 0, vd: 0, vx: 0, vy: 0, hasRZ: false, rzX: 0, rzY: 0, rzW: 0, rzH: 0 };
@@ -488,7 +487,6 @@ class RenderContext extends h3d.impl.RenderContext {
 			w = rx2 - rx1;
 			h = ry2 - ry1;
 		}
-
 		engine.setRenderZone(
 			Std.int(x * scaleX + (scene.viewportX+1) * (engine.width / 2) + 1e-10),
 			Std.int(y * scaleY + (scene.viewportY+1) * (engine.height / 2) + 1e-10),
@@ -496,7 +494,6 @@ class RenderContext extends h3d.impl.RenderContext {
 			Std.int(h * scaleY + 1e-10)
 		);
 	}
-
 	inline function clearRZ() {
 		hasRenderZone = false;
 		engine.setRenderZone();

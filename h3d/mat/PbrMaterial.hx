@@ -158,7 +158,10 @@ class PbrMaterial extends Material {
 		var props : PbrProps = getDefaultProps();
 		props.blend = switch( blendMode ) {
 			case None: None;
-			case Alpha: Alpha;
+			case Alpha:
+				// in PBR, Alpha blending is not correct - use alphaKill by default
+				props.alphaKill = true;
+				None;
 			case Add: Add;
 			case Multiply: Multiply;
 			case AlphaMultiply: AlphaMultiply;
