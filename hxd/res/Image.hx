@@ -50,7 +50,23 @@ class ImageInfo {
 	}
 }
 
-class Image extends Resource {
+enum ImageInfoFlag {
+	IsCube;
+	Dxt10Header;
+}
+
+@:allow(hxd.res.Image)
+class ImageInfo {
+	public var width(default,null) : Int = 0;
+	public var height(default,null) : Int = 0;
+	public var mipLevels(default,null) : Int = 1;
+	public var flags(default,null) : haxe.EnumFlags<ImageInfoFlag>;
+	public var dataFormat(default,null) : ImageFormat;
+	public var pixelFormat(default,null) : PixelFormat;
+	public function new() {
+		flags = new haxe.EnumFlags();
+	}
+}
 
 class Image extends Resource {
 	/**
