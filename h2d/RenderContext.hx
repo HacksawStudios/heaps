@@ -560,10 +560,9 @@ class RenderContext extends h3d.impl.RenderContext {
 			// flash does not allow blend separate operations
 			// this will get us good color but wrong alpha
 			#else
-			// accummulate correctly alpha values
-			if(separateAlphaSrc.exists(blend)) {
-				var separateSrc = separateAlphaSrc.get(blend);
-				pass.blendAlphaSrc = separateSrc;
+			// accumulate correctly alpha values
+			if( blend == Alpha || blend == Add ) {
+				pass.blendAlphaSrc = One;
 				// when merging
 				if( inFilterBlend != null )
 					pass.blendSrc = separateSrc;
