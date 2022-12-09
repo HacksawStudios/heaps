@@ -1,5 +1,6 @@
 package h3d;
 import hxd.Math;
+import hxd.impl.Float32;
 
 typedef ColorAdjust = {
 	?saturation : Float,
@@ -14,22 +15,22 @@ class Matrix {
 
 	static var tmp = new Matrix();
 
-	public var _11 : Float;
-	public var _12 : Float;
-	public var _13 : Float;
-	public var _14 : Float;
-	public var _21 : Float;
-	public var _22 : Float;
-	public var _23 : Float;
-	public var _24 : Float;
-	public var _31 : Float;
-	public var _32 : Float;
-	public var _33 : Float;
-	public var _34 : Float;
-	public var _41 : Float;
-	public var _42 : Float;
-	public var _43 : Float;
-	public var _44 : Float;
+	public var _11 : Float32;
+	public var _12 : Float32;
+	public var _13 : Float32;
+	public var _14 : Float32;
+	public var _21 : Float32;
+	public var _22 : Float32;
+	public var _23 : Float32;
+	public var _24 : Float32;
+	public var _31 : Float32;
+	public var _32 : Float32;
+	public var _33 : Float32;
+	public var _34 : Float32;
+	public var _41 : Float32;
+	public var _42 : Float32;
+	public var _43 : Float32;
+	public var _44 : Float32;
 
 	public var tx(get, set) : Float;
 	public var ty(get, set) : Float;
