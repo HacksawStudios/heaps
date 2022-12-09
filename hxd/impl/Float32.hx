@@ -1,7 +1,6 @@
 package hxd.impl;
 
-typedef Float32 = 
-#if hl hl.F32 #elseif js __Float32 #else Float #end;
+typedef Float32 = #if hl hl.F32 #elseif js __Float32 #else Float #end;
 
 abstract __Float32(Float) from Float to Float {
 	private static inline final MAX_SAFE_FLOAT = 3.402823466e+38;
