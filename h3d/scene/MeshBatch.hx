@@ -316,8 +316,15 @@ class MeshBatch extends MultiMaterial {
 		instanceCount++;
 	}
 
-	public inline function canEmitInstance() {
-		return curInstances < maxInstances;
+	public function disposeBuffers() {
+		if( instanceCount == 0 ) return;
+		var p = dataPasses;
+		var alloc = hxd.impl.Allocator.get();
+		while( p != null ) {
+			for ( b in p.buffers )
+				b.dispose();
+			p = p.next;
+		}
 	}
 
 	override function sync(ctx:RenderContext) {
