@@ -26,6 +26,10 @@ enum PixelFormat {
 	ASTC( ?v : Int );
 	ETC( ?v : Int );
 	S3TC( ?v : Int );
+	Depth16;
+	Depth24;
+	Depth24Stencil8;
+	Depth32;
 }
 
 enum abstract ASTC_FORMAT(Int) from Int to Int {

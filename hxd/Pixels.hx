@@ -581,6 +581,8 @@ class Pixels {
 			if( n == 1 || n == 4 )
 				return blocks << 1;
 			return blocks << 2;
+		case Depth16, Depth24, Depth24Stencil8:
+			throw "Not a pixel format";
 		}
 	}
 
@@ -619,7 +621,7 @@ class Pixels {
 			channel.toInt() * 4;
 		case RGB10A2, RG11B10UF:
 			throw "Bit packed format";
-		case S3TC(_), ASTC(_), ETC(_), PVRTC(_):
+		case S3TC(_), ASTC(_), ETC(_), PVRTC(_), Depth16, Depth24, Depth24Stencil8:
 			throw "Not supported";
 		}
 	}
