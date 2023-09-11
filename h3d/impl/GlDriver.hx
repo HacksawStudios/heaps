@@ -1197,7 +1197,6 @@ class GlDriver extends Driver {
 		var bind = getBindType(t);
 		gl.bindTexture(bind, t.t.t);
 		pixels.convert(t.format);
-		pixels.setFlip(false);
 		var dataLen = pixels.dataSize;
 		#if hl
 		var stream = streamData(pixels.bytes.getData(),pixels.offset,dataLen);
