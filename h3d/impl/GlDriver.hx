@@ -168,14 +168,14 @@ class GlDriver extends Driver {
 
 		#if hlsdl
 		hasMultiIndirect = gl.getConfigParameter(0) > 0;
-		maxCompressedTexturesSupport = 3;
+		maxCompressedTexturesSupport = 7;
 		var driver = getDriverName(false).toLowerCase();
 		isIntelGpu = ~/intel.*graphics/.match(driver);
 		#end
 
 		#if hlmesa
 		hasMultiIndirect = true;
-		maxCompressedTexturesSupport = 3;
+		maxCompressedTexturesSupport = 7;
 		#end
 
 		var v : String = gl.getParameter(GL.VERSION);
@@ -816,9 +816,9 @@ class GlDriver extends Driver {
 		case GL.RGB10_A2: GL.RGBA;
 		case GL.RED, GL.R8, GL.R16F, GL.R32F, 0x822A: GL.RED;
 		case GL.RG, GL.RG8, GL.RG16F, GL.RG32F, 0x822C: GL.RG;
-		case GL.RGB16F, GL.RGB32F, 0x8054: GL.RGB;
- 		case 0x83F1, 0x83F2, 0x83F3, 0x805B: GL.RGBA;
-		case hxd.PixelFormat.DXT_FORMAT.RGBA_DXT1,hxd.PixelFormat.DXT_FORMAT.RGBA_DXT3,
+		case GL.RGB16F, GL.RGB32F, 0x8054, 0x8E8F: GL.RGB;
+		case 0x83F1, 0x83F2, 0x83F3, 0x805B, 0x8E8C: GL.RGBA;
+ 		case hxd.PixelFormat.DXT_FORMAT.RGBA_DXT1,hxd.PixelFormat.DXT_FORMAT.RGBA_DXT3,
 		hxd.PixelFormat.DXT_FORMAT.RGBA_DXT5,hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4,
 		hxd.PixelFormat.PVRTC_FORMAT.RGBA_4BPPV1: GL.RGBA;
 		case hxd.PixelFormat.PVRTC_FORMAT.RGB_4BPPV1, hxd.PixelFormat.ETC_FORMAT.RGB_ETC1: GL.RGB;
@@ -911,9 +911,11 @@ class GlDriver extends Driver {
 		case S3TC(n) if( n <= maxCompressedTexturesSupport ):
 			checkMult4(t);
 			switch( n ) {
-			case 1: tt.internalFmt = hxd.PixelFormat.DXT_FORMAT.RGBA_DXT1;
-			case 2:	tt.internalFmt = hxd.PixelFormat.DXT_FORMAT.RGBA_DXT3;
-			case 3: tt.internalFmt = hxd.PixelFormat.DXT_FORMAT.RGBA_DXT5;
+			case 1: tt.internalFmt = 0x83F1; // COMPRESSED_RGBA_S3TC_DXT1_EXT
+                        case 2: tt.internalFmt = 0x83F2; // COMPRESSED_RGBA_S3TC_DXT3_EXT
+                        case 3: tt.internalFmt = 0x83F3; // COMPRESSED_RGBA_S3TC_DXT5_EXT
+                        case 6: tt.internalFmt = 0x8E8F; // COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT
+                        case 7: tt.internalFmt = 0x8E8C; // COMPRESSED_RGBA_BPTC_UNORM
 			default: throw "Unsupported texture format "+t.format;
 			}
 		case ASTC(n):
@@ -1708,8 +1710,11 @@ class GlDriver extends Driver {
 	function makeFeatures() {
 		for( f in Type.allEnums(Feature) )
 			features.set(f,checkFeature(f));
-		if( gl.getExtension("WEBGL_compressed_texture_s3tc") != null )
+		if( gl.getExtension("WEBGL_compressed_texture_s3tc") != null ) {
 			maxCompressedTexturesSupport = 3;
+			if( gl.getExtension("EXT_texture_compression_bptc") != null )
+				maxCompressedTexturesSupport = 7;
+		}
 		if( glES < 3 )
 			gl.getExtension("WEBGL_depth_texture");
 		has16Bits = gl.getExtension("EXT_texture_norm16") != null; // 16 bit textures
