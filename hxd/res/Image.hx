@@ -297,7 +297,12 @@ class Image extends Resource {
 			}
 		}
 
+		customCheckInfo(this);
+
 		return inf;
+	}
+
+	public static dynamic function customCheckInfo(i : Image) {
 	}
 
 	public function getPixels( ?fmt : PixelFormat, ?index : Int ) {
