@@ -62,9 +62,6 @@ class DepthCopy extends h3d.shader.ScreenShader {
 }
 
 class Renderer extends h3d.scene.Renderer {
-
-	public static final LIGHTMAP_STENCIL = 0x80;
-
 	var slides = new h3d.pass.ScreenFx(new h3d.shader.pbr.Slides());
 	var pbrOut = new h3d.pass.ScreenFx(new h3d.shader.ScreenShader());
 	var tonemap = new h3d.pass.ScreenFx(new h3d.shader.pbr.ToneMapping());
@@ -90,21 +87,14 @@ class Renderer extends h3d.scene.Renderer {
 		depth : (null:h3d.mat.Texture),
 		hdr : (null:h3d.mat.Texture),
 		ldr : (null:h3d.mat.Texture),
-		velocity : (null:h3d.mat.Texture),
 	};
 
-	public var cullingDistanceFactor : Float = 0.0;
 	public var skyMode : SkyMode = Hide;
 	public var toneMode : TonemapMap = Reinhard;
 	public var displayMode : DisplayMode = Pbr;
 	public var env : Environment;
 	public var exposure(get,set) : Float;
 	var debugShadowMapIndex = 1;
-
-	#if editor
-	var outline = new h3d.pass.ScreenFx(new hide.Renderer.ScreenOutline());
-	var outlineBlur = new h3d.pass.Blur(4);
-	#end
 
 	static var ALPHA : hxsl.Output = Swiz(Value("output.color"),[W]);
 	var output = new h3d.pass.Output("default",[
@@ -116,8 +106,7 @@ class Renderer extends h3d.scene.Renderer {
 		#else
 		Vec4([Value("output.metalness"), Value("output.roughness"), Value("output.emissive"), ALPHA]),
 		#end
-		Vec4([Value("output.depth"),Const(0), Const(0), ALPHA /* ? */]),
-		Vec4([Value("output.velocity", 2), Const(0), Const(0)])
+		Vec4([Value("output.depth"),Const(0), Const(0), ALPHA /* ? */])
 	]);
 	var decalsOutput = new h3d.pass.Output("decals",[
 		Vec4([Swiz(Value("output.color"),[X,Y,Z]), Value("output.albedoStrength",1)]),
@@ -142,11 +131,6 @@ class Renderer extends h3d.scene.Renderer {
 		Value("output.color"),
 		Vec4([Value("output.depth"),Const(0),Const(0),h3d.scene.pbr.Renderer.ALPHA])
 	]);
-	var colorDepthVelocityOutput = new h3d.pass.Output("colorDepthVelocityOutput",[
-		Value("output.color"),
-		Vec4([Value("output.depth"),Const(0),Const(0),h3d.scene.pbr.Renderer.ALPHA]),
-		Vec4([Value("output.velocity", 2), Const(0), Const(0)])
-	]);
 
 	public function new(?env) {
 		super();
@@ -158,18 +142,18 @@ class Renderer extends h3d.scene.Renderer {
 		pbrOut.pass.setBlendMode(Add);
 		pbrOut.pass.stencil = new h3d.mat.Stencil();
 		pbrOut.pass.stencil.setOp(Keep, Keep, Keep);
-		pbrOut.pass.stencil.setFunc(NotEqual, LIGHTMAP_STENCIL, LIGHTMAP_STENCIL, LIGHTMAP_STENCIL); // ignore already drawn volumetricLightMap areas
+		pbrOut.pass.stencil.setFunc(NotEqual, 0x80, 0x80, 0x80); // ignore already drawn volumetricLightMap areas
 		allPasses.push(output);
 		allPasses.push(defaultPass);
 		allPasses.push(decalsOutput);
 		allPasses.push(colorDepthOutput);
-		allPasses.push(colorDepthVelocityOutput);
 		allPasses.push(emissiveDecalsOutput);
 		allPasses.push(new h3d.pass.Shadows(null));
 		refreshProps();
-		#if editor
-		cullingDistanceFactor = hide.Ide.inst.ideConfig.cullingDistanceFactor;
-		#end
+	}
+
+	override function dispose() {
+		super.dispose();
 	}
 
 	override function addShader(s:hxsl.Shader) {
@@ -187,10 +171,6 @@ class Renderer extends h3d.scene.Renderer {
 			return output;
 		case "decal" #if MRT_low , "emissiveDecal" #end:
 			return decalsOutput;
-		#if editor
-		case "highlight", "highlightBack":
-			return defaultPass;
-		#end
 		}
 		return super.getPassByName(name);
 	}
@@ -229,41 +209,15 @@ class Renderer extends h3d.scene.Renderer {
 		});
 	}
 
-	inline function cullPassesWithDistance( passes : h3d.pass.PassList, f : h3d.col.Collider -> Bool ) {
-		var prevCollider = null;
-		var prevResult = true;
-		passes.filter(function(p) {
-			var col = p.obj.cullingCollider;
-			if( col == null )
-				return true;
-			if( col != prevCollider ) {
-				prevCollider = col;
-				prevResult = f(col);
-				if ( prevResult ) {
-					var dim = col.dimension() * cullingDistanceFactor;
-					dim = dim * dim;
-					prevResult = dim > ctx.camera.pos.distanceSq(p.obj.getAbsPos().getPosition());
-				}
-			}
-			return prevResult;
-		});
-	}
-
 	override function draw( name : String ) {
 		var passes = get(name);
-		if ( cullingDistanceFactor > 0.0 )
-			cullPassesWithDistance(passes, function(col) return col.inFrustum(ctx.camera.frustum));
-		else
-			cullPasses(passes, function(col) return col.inFrustum(ctx.camera.frustum));
+		cullPasses(passes, function(col) return col.inFrustum(ctx.camera.frustum));
 		defaultPass.draw(passes);
 		passes.reset();
 	}
 
 	function renderPass(p:h3d.pass.Output, passes, ?sort) {
-		if ( cullingDistanceFactor > 0.0 )
-			cullPassesWithDistance(passes, function(col) return col.inFrustum(ctx.camera.frustum));
-		else
-			cullPasses(passes, function(col) return col.inFrustum(ctx.camera.frustum));
+		cullPasses(passes, function(col) return col.inFrustum(ctx.camera.frustum));
 		p.draw(passes, sort);
 		passes.reset();
 	}
@@ -277,14 +231,17 @@ class Renderer extends h3d.scene.Renderer {
 		if( ctx.lightSystem != null ) ctx.lightSystem.drawPasses = ctx.engine.drawCalls - count;
 		end();
 
-		if (ls != null) {
-			while (ls.lightingShaders.length != 0)
-				ls.lightingShaders.pop();
-			ls.lightBuffer.sync(ctx);
+		var pbrLightSystem : h3d.scene.pbr.LightSystem = cast ctx.lightSystem;
+		if (pbrLightSystem != null) {
+			while (pbrLightSystem.lightingShaders.length != 0) {
+				pbrLightSystem.lightingShaders.pop();
+			}
+			pbrLightSystem.lightBuffer.sync(ctx);
 		}
 
 		begin(Lighting);
 		if ( displayMode == Performance ) {
+			var ls = Std.downcast(getLightSystem(), h3d.scene.pbr.LightSystem);
 			var s = new h3d.shader.pbr.Light.Performance();
 			performance.shader.gradient = getLightingPerformanceGradient();
 			s.maxLights = performance.shader.gradient.width - 1;
@@ -319,25 +276,17 @@ class Renderer extends h3d.scene.Renderer {
 			performance.shader.hdrMap = perf;
 		}
 
-		beforeIndirect();
 		mark("Indirect Lighting");
-		doIndirectLighting();
-		afterIndirect();
-
-		end();
-	}
-
-	function doIndirectLighting() {
-		if( !renderLightProbes() && indirectEnv && env != null && env.power > 0.0 ) {
+		if( !renderLightProbes() && indirectEnv  && env != null && env.power > 0.0 ) {
 			pbrProps.isScreen = true;
 			pbrIndirect.drawIndirectDiffuse = true;
 			pbrIndirect.drawIndirectSpecular = true;
 			pbrOut.render();
 		}
+
+		end();
 	}
 
-	function beforeIndirect() {}
-	function afterIndirect() {}
 	function beforeFullScreenLights() {}
 	function afterFullScreenLights() {}
 
@@ -386,12 +335,7 @@ class Renderer extends h3d.scene.Renderer {
 	}
 
 	function begin( step : h3d.impl.RendererFX.Step ) {
-		switch (step) {
-		case Custom(n):
-			mark(n);
-		default:
-			mark(step.getName());
-		}
+		mark(step.getName());
 
 		for( f in effects )
 			if( f.enabled )
@@ -415,48 +359,7 @@ class Renderer extends h3d.scene.Renderer {
 		}
 	}
 
-	function renderEditorOutline() {
-		#if editor
-		if (showEditorGuides) {
-			renderPass(defaultPass, get("debuggeom"), backToFront);
-			renderPass(defaultPass, get("debuggeom_alpha"), backToFront);
-		}
-
-		if (showEditorOutlines) {
-			var outlineTex = allocTarget("outline", true);
-			ctx.engine.pushTarget(outlineTex);
-			clear(0);
-			draw("highlightBack");
-			draw("highlight");
-			ctx.engine.popTarget();
-			var outlineBlurTex = allocTarget("outlineBlur", false);
-			outline.pass.setBlendMode(Alpha);
-			outlineBlur.apply(ctx, outlineTex, outlineBlurTex);
-			outline.shader.texture = outlineBlurTex;
-			outline.render();
-		}
-		#end
-	}
-
-	function renderEditorOverlay() {
-		#if editor
-		renderPass(defaultPass, get("overlay"), backToFront);
-		renderPass(defaultPass, get("ui"), backToFront);
-		#end
-	}
-
 	function end() {
-		#if editor
-			switch( currentStep ) {
-				case MainDraw:
-				case BeforeTonemapping:
-					renderEditorOutline();
-				case Overlay:
-					renderEditorOverlay();
-				default:
-			}
-		#end
-
 		for( f in effects )
 			if( f.enabled )
 				f.end(this, currentStep);
@@ -489,8 +392,6 @@ class Renderer extends h3d.scene.Renderer {
 		textures.depth = allocTarget("depth", true, 1., R32F);
 		textures.hdr = allocTarget("hdrOutput", true, 1, #if MRT_low RGB10A2 #else RGBA16F #end);
 		textures.ldr = allocTarget("ldrOutput");
-		if ( ctx.computeVelocity )
-			textures.velocity = allocTarget("velocity", true, 1., RG16F );
 	}
 
 	public function getPbrDepth() {
@@ -504,7 +405,6 @@ class Renderer extends h3d.scene.Renderer {
 		ctx.setGlobal("occlusionMap", { texture : textures.pbr, channel : hxsl.Channel.B });
 		ctx.setGlobal("hdrMap", textures.hdr);
 		ctx.setGlobal("ldrMap", textures.ldr);
-		ctx.setGlobal("velocity", textures.velocity);
 		ctx.setGlobal("global.time", ctx.time);
 		ctx.setGlobal("camera.position", ctx.camera.pos);
 		ctx.setGlobal("camera.inverseViewProj", ctx.camera.getInverseViewProj());
@@ -626,12 +526,9 @@ class Renderer extends h3d.scene.Renderer {
 	}
 
 	function getPbrRenderTargets( depth : Bool ) {
-		var targets = [textures.albedo, textures.normal, textures.pbr #if !MRT_low , textures.other #end];
 		if ( depth )
-			targets.push(getPbrDepth());
-		if ( ctx.computeVelocity )
-			targets.push(textures.velocity);
-		return targets;
+			return [textures.albedo, textures.normal, textures.pbr #if !MRT_low , textures.other #end, getPbrDepth()];
+		return [textures.albedo, textures.normal, textures.pbr #if !MRT_low , textures.other #end];
 	}
 
 	override function render() {
@@ -762,17 +659,23 @@ class Renderer extends h3d.scene.Renderer {
 				debugging = true;
 				hxd.Window.getInstance().addEventTarget(onEvent);
 			}
-			renderEditorOutline();
-			renderEditorOverlay();
+			#if editor
+			renderPass(defaultPass, get("overlay"), backToFront);
+			renderPass(defaultPass, get("ui"), backToFront);
+			#end
 		case Performance:
 			if( enableFXAA ) {
-				mark("FXAA");
+					mark("FXAA");
 				fxaa.apply(ldr);
-			} else
+			}
+			else {
 				copy(ldr, null);
+			}
 			performance.render();
-			renderEditorOutline();
-			renderEditorOverlay();
+			#if editor
+			renderPass(defaultPass, get("overlay"), backToFront);
+			renderPass(defaultPass, get("ui"), backToFront);
+			#end
 		}
 		if( debugging && displayMode != Debug ) {
 			debugging = false;

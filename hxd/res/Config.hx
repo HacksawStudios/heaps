@@ -65,7 +65,7 @@ class Config {
 		"ogg" => "wav",
 		"mp3" => "wav",
 		"l3d" => "bake",
-		"css" => "less,css.map",
+		"css" => "less",
 	];
 
 	public static function addPairedExtension( main, shadow) {

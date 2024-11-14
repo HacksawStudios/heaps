@@ -54,10 +54,6 @@ class SkinCollider extends Collider {
 		return transform.rayIntersection(r, bestMatch);
 	}
 
-	public function dimension() {
-		return currentBounds.dimension();
-	}
-
 	function checkBounds() {
 		if( !obj.jointsUpdated && lastBoundsFrame == obj.lastFrame ) return;
 		lastBoundsFrame = obj.lastFrame;

@@ -271,7 +271,7 @@ class BaseLibrary {
 
 		// scale on geometry
 		if( geometryScaleFactor != 1 ) {
-			for( g in this.root.getAll("Objects.Geometry.Vertices").concat(this.root.getAll("Objects.Geometry.Shape.Vertices")) ) {
+			for( g in this.root.getAll("Objects.Geometry.Vertices") ) {
 				var v = toFloats(g);
 				for( i in 0...v.length )
 					v[i] = v[i] / geometryScaleFactor;
@@ -292,11 +292,6 @@ class BaseLibrary {
 						p.props[idx] = PFloat(v * scaleFactor);
 					}
 				case "Lcl Translation", "GeometricTranslation" if( !isRoot ):
-					for( idx in [4,5,6] ) {
-						var v = p.props[idx].toFloat();
-						p.props[idx] = PFloat(v / scaleFactor);
-					}
-				case "GeometricTranslation":
 					for( idx in [4,5,6] ) {
 						var v = p.props[idx].toFloat();
 						p.props[idx] = PFloat(v / scaleFactor);
@@ -407,15 +402,9 @@ class BaseLibrary {
 				convertPoints(v.getFloats());
 			for( v in g.getAll("LayerElementNormal.Normals") )
 				convertPoints(v.getFloats());
-		}
-		for ( s in root.getAll("Objects.Geometry.Shape") ) {
-			for ( v in s.getAll("Vertices") )
+			for( v in g.getAll("LayerElementTangent.Tangents") )
 				convertPoints(v.getFloats());
-			for ( v in s.getAll("Normals") )
-				convertPoints(v.getFloats());
-			for ( v in s.getAll("Tangents") )
-				convertPoints(v.getFloats());
-			for ( v in s.getAll("Binormals") )
+			for( v in g.getAll("LayerElementBinormal.Binormals") )
 				convertPoints(v.getFloats());
 		}
 	}

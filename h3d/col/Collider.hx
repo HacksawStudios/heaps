@@ -10,7 +10,6 @@ abstract class Collider {
 	public abstract function contains( p : Point ) : Bool;
 	public abstract function inFrustum( f : Frustum, ?localMatrix : h3d.Matrix ) : Bool;
 	public abstract function inSphere( s : Sphere ) : Bool;
-	public abstract function dimension() : Float;
 
 	#if !macro
 	public abstract function makeDebugObj() : h3d.scene.Object;
@@ -30,7 +29,7 @@ class OptimizedCollider extends Collider {
 	}
 
 	public function rayIntersection( r : Ray, bestMatch : Bool ) : Float {
-		if( a.rayIntersection(r, false) < 0 ) {
+		if( a.rayIntersection(r, bestMatch) < 0 ) {
 			if( !checkInside )
 				return -1;
 			if( !a.contains(r.getPoint(0)) )
@@ -49,10 +48,6 @@ class OptimizedCollider extends Collider {
 
 	public function inSphere( s : Sphere ) {
 		return a.inSphere(s) && b.inSphere(s);
-	}
-
-	public function dimension() {
-		return Math.max(a.dimension(), b.dimension());
 	}
 
 	#if !macro
@@ -113,13 +108,6 @@ class GroupCollider extends Collider {
 		return false;
 	}
 
-	public function dimension() {
-		var d = Math.NEGATIVE_INFINITY;
-		for ( c in colliders ) {
-			d = Math.max(d, c.dimension());
-		}
-		return d;
-	}
 	#if !macro
 	public function makeDebugObj() : h3d.scene.Object {
 		var ret : h3d.scene.Object = null;

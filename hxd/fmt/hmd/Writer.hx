@@ -110,19 +110,16 @@ class Writer {
 
 		writeProps(d.props);
 
-		function writeFormat(format : hxd.BufferFormat) {
-			out.writeByte(format.stride);
-			out.writeByte(@:privateAccess format.inputs.length);
-			for( f in format.getInputs() ) {
-				writeName(f.name);
-				out.writeByte(f.type.toInt() | (f.precision.toInt() << 4));
-			}
-		}
 		out.writeInt32(d.geometries.length);
 		for( g in d.geometries ) {
 			writeProps(g.props);
 			out.writeInt32(g.vertexCount);
-			writeFormat(g.vertexFormat);
+			out.writeByte(g.vertexFormat.stride);
+			out.writeByte(@:privateAccess g.vertexFormat.inputs.length);
+			for( f in g.vertexFormat.getInputs() ) {
+				writeName(f.name);
+				out.writeByte(f.type.toInt() | (f.precision.toInt() << 4));
+			}
 			out.writeInt32(g.vertexPosition);
 			if( g.indexCounts.length >= 0xFF ) {
 				out.writeByte(0xFF);
@@ -197,17 +194,6 @@ class Writer {
 					writeName(e.data);
 				}
 			}
-		}
-
-		out.writeInt32(d.shapes.length);
-		for ( s in d.shapes ) {
-			writeName(s.name);
-			out.writeInt32(s.geom + 1);
-			out.writeInt32(s.vertexCount);
-			writeFormat(s.vertexFormat);
-			out.writeInt32(s.vertexPosition);
-			out.writeInt32(s.indexCount);
-			out.writeInt32(s.remapPosition);
 		}
 
 		var bytes = header.getBytes();

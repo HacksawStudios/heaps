@@ -130,14 +130,6 @@ enum TextureFlags {
 		By default, the texture are loaded from images when created. If this flag is enabled, the texture will be loaded from disk when first used.
 	**/
 	LazyLoading;
-	/**
-		Texture can be written in shaders using RWTexture
-	**/
-	Writable;
-	/**
-		Tells if it's a 3D texture
-	**/
-	Is3D;
 }
 
 typedef TextureFormat = hxd.PixelFormat;

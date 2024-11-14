@@ -14,19 +14,9 @@ private class BorderShader extends h3d.shader.ScreenShader {
 
 class Border extends ScreenFx<BorderShader> {
 
-	var width(default, null) : Int;
-	var height(default, null) : Int;
-	var size(default, null) : Int;
-
 	public function new( width : Int, height : Int, size : Int = 1 ) {
 		super(new BorderShader());
-		this.width = width;
-		this.height = height;
-		this.size = size;
-		shader.color.set(1,1,1,1);
-	}
 
-	function createPrimitive() {
 		var bbuf = new hxd.FloatBuffer();
 		inline function add(x, y) {
 			bbuf.push((x / width) * 2 - 1);
@@ -53,18 +43,12 @@ class Border extends ScreenFx<BorderShader> {
 		add(width, height);
 
 		this.primitive = new h3d.prim.RawPrimitive({ vbuf : bbuf, format : hxd.BufferFormat.make([{ name : "position", type : DVec2 }]) }, true);
-	}
-
-	override function render() {
-		if (primitive == null)
-			createPrimitive();
-		super.render();
+		shader.color.set(1,1,1,1);
 	}
 
 	override function dispose() {
-		if (primitive != null)
-			this.primitive.dispose();
 		super.dispose();
+		this.primitive.dispose();
 	}
 
 }

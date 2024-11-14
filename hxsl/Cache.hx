@@ -302,7 +302,7 @@ class Cache {
 
 		var prev = s;
 		var splitter = new hxsl.Splitter();
-		var sl = try splitter.split(s, mode == Batch ) catch( e : Error ) { e.msg += "\n\nin\n\n"+Printer.shaderToString(s); throw e; };
+		var sl = try splitter.split(s) catch( e : Error ) { e.msg += "\n\nin\n\n"+Printer.shaderToString(s); throw e; };
 
 		// params tracking
 		var paramVars = new Map();
@@ -442,7 +442,6 @@ class Cache {
 		data = hl.Api.compact(data, null, 0, null);
 		#end
 		var textures = [];
-		var buffers = [];
 		c.texturesCount = 0;
 		for( g in flat.allocData.keys() ) {
 			var alloc = flat.allocData.get(g);
@@ -462,7 +461,7 @@ class Cache {
 					}
 					var ap = new AllocParam(a.v.name, a.pos, p.instance, p.index, a.v.type);
 					switch( a.v.type ) {
-					case TArray(t,_) if( t.isTexture() ):
+					case TArray(t,_) if( t.isSampler() ):
 						// hack to mark array of texture, see ShaderManager.fillParams
 						ap.pos = -a.size;
 						count += a.size;
@@ -474,16 +473,22 @@ class Cache {
 				for( i in 0...out.length - 1 )
 					out[i].next = out[i + 1];
 				switch( g.type ) {
-				case TArray(t, _) if( t.isTexture() ):
+				case TArray(t, _) if( t.isSampler() ):
 					textures.push({ t : t, all : out });
 					c.texturesCount += count;
 				case TArray(TVec(4, VFloat), SConst(size)):
 					c.params = out[0];
 					c.paramsSize = size;
-				case TArray(TBuffer(_, _, kind), _):
-					for( outBuf in out )
-						if ( outBuf != null )
-							buffers.push(outBuf);
+				case TArray(TBuffer(_), _):
+					if( c.buffers == null ) {
+						c.buffers = out[0];
+						c.bufferCount = out.length;
+					} else {
+						var p = c.buffers;
+						while( p.next != null ) p = p.next;
+						p.next = out[0];
+						c.bufferCount += out.length;
+					}
 				default: throw "assert";
 				}
 			case Global:
@@ -502,22 +507,7 @@ class Cache {
 		}
 		if( textures.length > 0 ) {
 			// relink in order based on type
-			textures.sort(function(t1,t2) {
-				return switch ( [t1.t, t2.t] ) {
-				case [TSampler(t1, a1), TSampler(t2, a2)]:
-					if ( a1 != a2 )
-						a1 ? 1 : -1;
-					else
-						t1.getIndex() - t2.getIndex();
-				case [TRWTexture(t1, a1, _), TRWTexture(t2, a2, _)]:
-					if ( a1 != a2 )
-						a1 ? 1 : -1;
-					else
-						t1.getIndex() - t2.getIndex();
-				default :
-					t1.t.getIndex() - t2.t.getIndex();
-				}
-			});
+			textures.sort(function(t1,t2) return t1.t.getIndex() - t2.t.getIndex());
 			c.textures = textures[0].all[0];
 			for( i in 1...textures.length ) {
 				var prevAll = textures[i-1].all;
@@ -525,31 +515,12 @@ class Cache {
 				prev.next = textures[i].all[0];
 			}
 		}
-		if ( buffers.length > 0 ) {
-			buffers.sort(function(b1, b2) {
-				return switch ( [b1.type, b2.type] ) {
-				case [TBuffer(_, _, k1), TBuffer(_, _, k2)]:
-					k1.getIndex() - k2.getIndex();
-				default:
-					b1.type.getIndex() - b2.type.getIndex();
-				}
-			});
-		}
-		var p = null;
-		for ( b in buffers ) {
-			if ( c.buffers == null ) {
-				c.buffers = b;
-				p = c.buffers;
-			} else {
-				p.next = b;
-				p = p.next;
-			}
-		}
-		c.bufferCount = buffers.length;
 		if( c.globals == null )
 			c.globalsSize = 0;
 		if( c.params == null )
 			c.paramsSize = 0;
+		if( c.buffers == null )
+			c.bufferCount = 0;
 		c.data = data;
 		return c;
 	}
@@ -622,22 +593,18 @@ class Cache {
 		hasOffset.qualifiers = [Const()];
 		inputOffset.qualifiers = [PerInstance(1)];
 
-		var useStorage = declVar("Batch_UseStorage",TBool,Param);
 		var vcount = declVar("Batch_Count",TInt,Param);
-		var vuniformBuffer = declVar("Batch_Buffer",TBuffer(TVec(4,VFloat),SVar(vcount),Uniform),Param);
-		var vstorageBuffer = declVar("Batch_StorageBuffer",TBuffer(TVec(4,VFloat),SConst(0),RW),Param);
+		var vbuffer = declVar("Batch_Buffer",TBuffer(TVec(4,VFloat),SVar(vcount),Uniform),Param);
 		var voffset = declVar("Batch_Offset", TInt, Local);
-		var euniformBuffer = { e : TVar(vuniformBuffer), p : pos, t : vuniformBuffer.type };
-		var estorageBuffer = { e : TVar(vstorageBuffer), p : pos, t : vstorageBuffer.type };
+		var ebuffer = { e : TVar(vbuffer), p : pos, t : vbuffer.type };
 		var eoffset = { e : TVar(voffset), p : pos, t : voffset.type };
 		var tvec4 = TVec(4,VFloat);
 		var countBits = 16;
 		vcount.qualifiers = [Const(1 << countBits)];
-		useStorage.qualifiers = [Const()];
 
 		s.data = {
 			name : "batchShader_"+id,
-			vars : [vcount,hasOffset,useStorage,vuniformBuffer,vstorageBuffer,voffset,inputOffset],
+			vars : [vcount,hasOffset,vbuffer,voffset,inputOffset],
 			funs : [],
 		};
 
@@ -688,13 +655,8 @@ class Cache {
 
 		var params = null;
 		var used = [];
-		var added = [];
 
 		function addParam(p:RuntimeShader.AllocParam) {
-			var pid = p.perObjectGlobal != null ? -p.perObjectGlobal.gid : p.instance * 1024 + p.index;
-            if( added.indexOf(pid) >= 0 )
-                return;
-            added.push(pid);
 			var size = switch( p.type ) {
 				case TMat4: 4 * 4;
 				case TVec(n,VFloat): n;
@@ -773,11 +735,11 @@ class Cache {
 		var parentVars = new Map();
 		var swiz = [[X],[Y],[Z],[W]];
 
-		function readOffset( ebuffer, index : Int ) : TExpr {
+		function readOffset( index : Int ) : TExpr {
 			return { e : TArray(ebuffer,{ e : TBinop(OpAdd,eoffset,{ e : TConst(CInt(index)), t : TInt, p : pos }), t : TInt, p : pos }), t : tvec4, p : pos };
 		}
 
-		function declareLocalVar( v : AllocParam ) {
+		function extractVar( v : AllocParam ) {
 			var vreal : TVar = declVar(v.name, v.type, Local);
 			if( v.perObjectGlobal != null ) {
 				var path = v.perObjectGlobal.path.split(".");
@@ -800,48 +762,42 @@ class Cache {
 				}
 			}
 			s.data.vars.push(vreal);
-			return vreal;
-		}
-
-		function extractVar( vreal, ebuffer, v : AllocParam ) {
 			var index = (v.pos>>2);
 			var extract = switch( v.type ) {
 			case TMat4:
 				{ p : pos, t : v.type, e : TCall({ e : TGlobal(Mat4), t : TVoid, p : pos },[
-					readOffset(ebuffer, index),
-					readOffset(ebuffer, index + 1),
-					readOffset(ebuffer, index + 2),
-					readOffset(ebuffer, index + 3),
+					readOffset(index),
+					readOffset(index + 1),
+					readOffset(index + 2),
+					readOffset(index + 3),
 				]) };
 			case TVec(4,VFloat):
-				readOffset(ebuffer, index);
+				readOffset(index);
 			case TVec(3,VFloat):
-				{ p : pos, t : v.type, e : TSwiz(readOffset(ebuffer, index),v.pos&3 == 0 ? [X,Y,Z] : [Y,Z,W]) };
+				{ p : pos, t : v.type, e : TSwiz(readOffset(index),v.pos&3 == 0 ? [X,Y,Z] : [Y,Z,W]) };
 			case TVec(2,VFloat):
 				var swiz = switch( v.pos & 3 ) {
 				case 0: [X,Y];
 				case 1: [Y,Z];
 				default: [Z,W];
 				}
-				{ p : pos, t : v.type, e : TSwiz(readOffset(ebuffer, index),swiz) };
+				{ p : pos, t : v.type, e : TSwiz(readOffset(index),swiz) };
 			case TFloat:
-				{ p : pos, t : v.type, e : TSwiz(readOffset(ebuffer, index),swiz[v.pos&3]) }
+				{ p : pos, t : v.type, e : TSwiz(readOffset(index),swiz[v.pos&3]) }
 			default:
 				throw "assert";
 			}
 			return { p : pos, e : TBinop(OpAssign, { e : TVar(vreal), p : pos, t : v.type }, extract), t : TVoid };
 		}
 
-		var exprsUniform = [];
-		var exprsStorage = [];
+		var exprs = [];
 		var stride = used.length;
 		var p = params;
 		while( p != null ) {
-			var vreal = declareLocalVar(p);
-			exprsUniform.push(extractVar(vreal, euniformBuffer, p));
-			exprsStorage.push(extractVar(vreal, estorageBuffer, p));
+			exprs.push(extractVar(p));
 			p = p.next;
 		}
+
 
 		var inits = [];
 
@@ -868,35 +824,19 @@ class Cache {
 			e : TBinop(OpAssignOp(OpMult),eoffset,{ e : TConst(CInt(stride)), t : TInt, p : pos }),
 		});
 
-		inits.push({
-			p : pos,
-			e : TIf({ e : TVar(useStorage), t : TBool, p : pos },{
-				p : pos,
-				e : TBlock(exprsStorage),
-				t : TVoid,
-			}, {
-				p : pos,
-				e : TBlock(exprsUniform),
-				t : TVoid,
-			}),
-			t : TVoid,
-		});
-
 		var fv : TVar = declVar("init",TFun([]), Function);
 		var f : TFunction = {
 			kind : Init,
 			ref : fv,
 			args : [],
 			ret : TVoid,
-			expr : { e : TBlock(inits), p : pos, t : TVoid },
+			expr : { e : TBlock(inits.concat(exprs)), p : pos, t : TVoid },
 		};
 		s.data.funs.push(f);
-		s.consts = new SharedShader.ShaderConst(vcount,2,countBits+1);
+		s.consts = new SharedShader.ShaderConst(vcount,1,countBits+1);
 		s.consts.globalId = 0;
 		s.consts.next = new SharedShader.ShaderConst(hasOffset,0,1);
 		s.consts.next.globalId = 0;
-		s.consts.next.next = new SharedShader.ShaderConst(useStorage,1,1);
-		s.consts.next.next.globalId = 0;
 
 		return { shader : s, params : params, size : stride };
 	}

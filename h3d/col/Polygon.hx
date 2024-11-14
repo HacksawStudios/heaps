@@ -26,10 +26,7 @@ class TriPlane extends Collider {
 	var nz : Float;
 	var d : Float;
 
-	var oriented : Bool;
-
-	public function new(o = false) {
-		oriented = o;
+	public function new() {
 	}
 
 	public inline function init( p0 : Point, p1 : Point, p2 : Point ) {
@@ -58,7 +55,7 @@ class TriPlane extends Collider {
 	}
 
 	public inline function clone() {
-		var clone = new TriPlane(oriented);
+		var clone = new TriPlane();
 		clone.load(this);
 		if(next != null)
 			clone.next = next.clone();
@@ -115,11 +112,11 @@ class TriPlane extends Collider {
 
 	inline public function rayIntersection( r : Ray, bestMatch : Bool ) @:privateAccess {
 		var dr = r.lx * nx + r.ly * ny + r.lz * nz;
-		if( dr >= 0 && oriented ) // backface culling
+		if( dr >= 0 ) // backface culling
 			return -1.;
 		var nd = d - (r.px * nx + r.py * ny + r.pz * nz);
 		var k = nd / dr;
-		if( k < 0 && oriented )
+		if( k < 0 )
 			return -1;
 		var px = r.px + r.lx * k;
 		var py = r.py + r.ly * k;
@@ -159,27 +156,21 @@ class TriPlane extends Collider {
 	}
 	#end
 
-	public function dimension() {
-		throw "Not implemented";
-		return 0.0;
-	}
 }
 
 
 class Polygon extends Collider {
 
 	var triPlanes : TriPlane;
-	var oriented : Bool;
 
-	public function new(o = false) {
-		oriented = o;
+	public function new() {
 	}
 
 	public function addBuffers( vertexes : haxe.ds.Vector<hxd.impl.Float32>, indexes : haxe.ds.Vector<Int>, stride = 3 ) {
 		for(i in 0...Std.int(indexes.length / 3)) {
 			var k = i * 3;
 
-			var t = new TriPlane(oriented);
+			var t = new TriPlane();
 
 			var i0 = indexes[k] * stride;
 			var i1 = indexes[k + 1] * stride;
@@ -202,7 +193,7 @@ class Polygon extends Collider {
 	}
 
 	public function clone() : h3d.col.Polygon {
-		var clone = new h3d.col.Polygon(oriented);
+		var clone = new h3d.col.Polygon();
 		clone.triPlanes = triPlanes.clone();
 		return clone;
 	}
@@ -274,10 +265,6 @@ class Polygon extends Collider {
 		return false;
 	}
 
-	inline public function dimension() {
-		return getBounds().dimension();
-	}
-
 	#if !macro
 	public function makeDebugObj() : h3d.scene.Object {
 		var points : Array<Point> = [];
@@ -295,21 +282,18 @@ class Polygon extends Collider {
 		}
 		var prim = new h3d.prim.Polygon(points);
 		prim.addNormals();
-		var mesh = new h3d.scene.Mesh(prim);
-		if ( !oriented )
-			mesh.material.mainPass.culling = None;
-		return mesh;
+		return new h3d.scene.Mesh(prim);
 	}
 	#end
 
-	public static function fromPolygon2D( p : h2d.col.Polygon, z = 0., oriented = true ) {
+	public static function fromPolygon2D( p : h2d.col.Polygon, z = 0. ) {
 		var pout = new Polygon();
 		if( p.isConvex() ) {
 			var p0 = p[0];
 			for( i in 0...p.length-2 ) {
 				var p1 = p[i+1];
 				var p2 = p[i+2];
-				var t = new TriPlane(oriented);
+				var t = new TriPlane();
 				t.init(
 					new h3d.col.Point(p0.x, p0.y, z),
 					new h3d.col.Point(p1.x, p1.y, z),
@@ -324,7 +308,7 @@ class Polygon extends Collider {
 				var p0 = p[idx[i*3]];
 				var p1 = p[idx[i*3+1]];
 				var p2 = p[idx[i*3+2]];
-				var t = new TriPlane(oriented);
+				var t = new TriPlane();
 				t.init(
 					new h3d.col.Point(p0.x, p0.y, z),
 					new h3d.col.Point(p1.x, p1.y, z),

@@ -27,9 +27,11 @@ enum BufferFlag {
 class Buffer {
 	public static var GUID = 0;
 	public var id : Int;
+	#if track_alloc
 	var allocPos : hxd.impl.AllocPos;
+	var allocNext : Buffer;
+	#end
 	var engine : h3d.Engine;
-	var lastFrame : Int;
 
 	@:allow(h3d.impl.Driver) var vbuf : h3d.impl.Driver.GPUBuffer;
 	public var vertices(default,null) : Int;
@@ -41,7 +43,9 @@ class Buffer {
 		this.vertices = vertices;
 		this.format = format;
 		this.flags = new haxe.EnumFlags();
-		this.allocPos = hxd.impl.AllocPos.make();
+		#if track_alloc
+		this.allocPos = new hxd.impl.AllocPos();
+		#end
 		if( flags != null )
 			for( f in flags )
 				this.flags.set(f);
@@ -130,7 +134,7 @@ class Buffer {
 	}
 
 	public static function ofFloats( v : hxd.FloatBuffer, format : hxd.BufferFormat, ?flags ) {
-		var nvert = Math.ceil(v.length / format.stride);
+		var nvert = Std.int(v.length / format.stride);
 		var b = new Buffer(nvert, format, flags);
 		b.uploadFloats(v, 0, nvert);
 		return b;

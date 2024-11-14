@@ -58,14 +58,17 @@ class System {
 		loopFunc = f;
 	}
 
-	static function mainLoop() {
+	static function mainLoop() : Bool {
 		// process events
 		#if usesys
-		haxe.System.emitEvents(@:privateAccess hxd.Window.dispatchEvent);
+		if( !haxe.System.emitEvents(@:privateAccess hxd.Window.inst.event) )
+			return false;
 		#elseif hldx
-		dx.Loop.processEvents(@:privateAccess hxd.Window.dispatchEvent);
+		if( !dx.Loop.processEvents(@:privateAccess hxd.Window.inst.onEvent) )
+			return false;
 		#elseif hlsdl
-		sdl.Sdl.processEvents(@:privateAccess hxd.Window.dispatchEvent);
+		if( !sdl.Sdl.processEvents(@:privateAccess hxd.Window.inst.onEvent) )
+			return false;
 		#end
 
 		// loop
@@ -84,6 +87,7 @@ class System {
 			hl.Profile.event(-2); // resume
 			#end
 		}
+		return true;
 	}
 
 	public static function start( init : Void -> Void ) : Void {
@@ -124,14 +128,6 @@ class System {
 		timeoutTick();
 		haxe.Timer.delay(runMainLoop, 0);
 	}
-	
-	static function isAlive() {
-		#if usesys
-		return true;
-		#else
-		return hxd.Window.hasWindow();
-		#end
-	}
 
 	static function runMainLoop() {
 		#if (haxe_ver >= 4.1)
@@ -142,7 +138,7 @@ class System {
 		#if ( target.threaded && (haxe_ver >= 4.2) && heaps_unsafe_events)
 		var eventRecycle = [];
 		#end
-		while( isAlive() ) {
+		while( true ) {
 			#if !heaps_no_error_trap
 			try {
 				hl.Api.setErrorHandler(reportError); // set exception trap
@@ -160,7 +156,7 @@ class System {
 				@:privateAccess haxe.MainLoop.tick();
 				#end
 
-				mainLoop();
+				if( !mainLoop() ) break;
 			#if !heaps_no_error_trap
 			} catch( e : Dynamic ) {
 				hl.Api.setErrorHandler(null);
@@ -463,12 +459,7 @@ class System {
 
 	static function __init__() {
 		#if !usesys
-		#if (haxe_ver >= 4.1)
-		var reportError = function(e:Dynamic) reportError((e is haxe.Exception)?e:new haxe.Exception(Std.string(e),null,e));
-		#else
-		var reportError = function(e) reportError(e);
-		#end
-		hl.Api.setErrorHandler(reportError); // initialization error
+		hl.Api.setErrorHandler(function(e) reportError(e)); // initialization error
 		sentinel = new hl.UI.Sentinel(30, function() throw "Program timeout (infinite loop?)");
 		#end
 		#if ( target.threaded && (haxe_ver >= 4.2) )

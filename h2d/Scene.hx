@@ -782,19 +782,14 @@ class Scene extends Layers implements h3d.IDrawable implements hxd.SceneEvents.I
 		ctx.frame++;
 		ctx.time += ctx.elapsedTime;
 		ctx.globalAlpha = alpha;
-		mark("s2d");
 		sync(ctx);
-		if( children.length != 0 ) {
-			ctx.begin();
-			#if sceneprof h3d.impl.SceneProf.begin("2d", ctx.frame); #end
-			ctx.drawScene();
-			#if sceneprof h3d.impl.SceneProf.end(); #end
-			ctx.end();
-		}
-		mark("vsync");
+		if( children.length == 0 ) return;
+		ctx.begin();
+		#if sceneprof h3d.impl.SceneProf.begin("2d", ctx.frame); #end
+		ctx.drawScene();
+		#if sceneprof h3d.impl.SceneProf.end(); #end
+		ctx.end();
 	}
-
-	public dynamic function mark(name : String) {}
 
 	override function sync( ctx : RenderContext ) {
 		var forceCamSync = posChanged;

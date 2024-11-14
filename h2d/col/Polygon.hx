@@ -202,23 +202,12 @@ abstract Polygon(Array<Point>) from Array<Point> to Array<Point> {
 	}
 
 	/**
-		Transforms Polygon points by the provided matrix.
+		Transforms Polygon points by provided matrix.
 	**/
 	public function transform(mat: h2d.col.Matrix) {
 		for( i in 0...points.length ) {
-			points[i].transform(mat);
+			points[i] = mat.transform(points[i]);
 		}
-	}
-
-	/**
-		Returns a new transformed Polygon points by the provided matrix.
-	**/
-	public function transformed(mat: h2d.col.Matrix) {
-		var ret = points.copy();
-		for( i in 0...ret.length ) {
-			ret[i] = ret[i].transformed(mat);
-		}
-		return new Polygon(ret);
 	}
 
 	/**
@@ -273,26 +262,21 @@ abstract Polygon(Array<Point>) from Array<Point> to Array<Point> {
 
 	/**
 		Return the closest point on the edges of the polygon
-		@param pt The point to test against.
-		@param out Optional Point instance to which closest point is written. If not provided, returns new Point instance.
-		@returns A `Point` instance of the closest point on the edges of the polygon.
 	**/
-	public function projectPoint(pt: h2d.col.Point, ?out : h2d.col.Point) {
+	public function projectPoint(pt: h2d.col.Point) {
 		var p1 = points[points.length - 1];
-		var closest = new h2d.col.Point();
-		if (out == null) out = new Point();
+		var closestProj = null;
 		var minDistSq = 1e10;
 		for(p2 in points) {
-			new Segment(p1, p2).project(pt, out);
-			var distSq = out.distanceSq(pt);
-			if (distSq < minDistSq) {
-				closest.load(out);
+			var proj = new Segment(p1, p2).project(pt);
+			var distSq = proj.distanceSq(pt);
+			if(distSq < minDistSq) {
+				closestProj = proj;
 				minDistSq = distSq;
 			}
 			p1 = p2;
 		}
-		out.load(closest);
-		return out;
+		return closestProj;
 	}
 
 	/**

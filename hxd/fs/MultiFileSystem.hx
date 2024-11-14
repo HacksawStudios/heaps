@@ -17,7 +17,7 @@ private class MultiFileEntry extends FileEntry {
 	override function open() return el[0].open();
 
 	override function load( ?onReady : Void -> Void ) : Void return el[0].load(onReady);
-	override function loadBitmap( onLoaded : LoadedBitmap -> Void ) : Void return el[0].loadBitmap(onLoaded);
+	override function loadBitmap( onLoaded : (bmp:LoadedBitmap, ?texture:h3d.mat.Texture) -> Void ) : Void return el[0].loadBitmap(onLoaded);
 	override function watch( onChanged : Null < Void -> Void > ) {
 		for( e in el )
 			e.watch(onChanged);

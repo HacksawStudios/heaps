@@ -187,6 +187,7 @@ class CubeToPanorama extends h3d.shader.ScreenShader {
 		@param var source : SamplerCube;
 
 		function fragment() {
+			var PI = 3.1415926;
 			var fovX = PI * 2;
 			var fovY = PI;
 			var hOffset = (2.0 * PI - fovX) * 0.5;

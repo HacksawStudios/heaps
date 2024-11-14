@@ -122,12 +122,10 @@ class Frustum {
 			return false;
 		if( b.testPlane(pbottom) < 0 )
 			return false;
-		if ( checkNearFar ) {
-			if( b.testPlane(pnear) < 0 )
-				return false;
-			if( b.testPlane(pfar) < 0 )
-				return false;
-		}
+		if( b.testPlane(pnear) < 0 )
+			return false;
+		if( b.testPlane(pfar) < 0 )
+			return false;
 		return true;
 	}
 

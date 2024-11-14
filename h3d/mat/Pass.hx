@@ -18,6 +18,7 @@ class Pass {
 	var selfShadersCache : hxsl.ShaderList;
 	var shaders : hxsl.ShaderList;
 	var nextPass : Pass;
+	var culled : Bool = false;
 	var rendererFlags : Int = 0;
 
 	@:bits(flags) public var enableLights : Bool;
@@ -45,7 +46,6 @@ class Pass {
 	@:bits(bits) public var blendOp : Operation;
 	@:bits(bits) public var blendAlphaOp : Operation;
 	@:bits(bits) public var wireframe : Bool;
-	@:bits(bits) public var culled : Bool;
 	public var colorMask : Int;
 	public var layer : Int = 0;
 
@@ -219,7 +219,6 @@ class Pass {
 
 	public function removeShader(s) {
 		var sl = shaders, prev = null;
-		var shaderFound = false;
 		while( sl != null ) {
 			if( sl.s == s ) {
 				resetRendererFlags();
@@ -229,8 +228,7 @@ class Pass {
 					shaders = sl.next;
 				else
 					prev.next = sl.next;
-				shaderFound = true;
-				break;
+				return true;
 			}
 			prev = sl;
 			sl = sl.next;
@@ -251,7 +249,7 @@ class Pass {
 			prev = sl;
 			sl = sl.next;
 		}
-		return shaderFound;
+		return false;
 	}
 
 	public function removeShaders< T:hxsl.Shader >(t:Class<T>) {
@@ -362,8 +360,6 @@ class Pass {
 			prev = s;
 			s = s.next;
 		}
-		if ( s != parentShaders )
-			prev = null;
 		parentShaders = parentPass.shaders;
 		if( prev == null )
 			shaders = parentShaders;

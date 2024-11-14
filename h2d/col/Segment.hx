@@ -100,24 +100,19 @@ class Segment {
 
 	/**
 		Projects Point `p` onto Segment. Returns position of intersection between Segment and line perpendicular to it going through Point `p`.
-		@param p Point to project onto this Segment.
-		@param out Optional Point instance to which projection point is written. If not provided, returns new Point instance.
-		@returns A `Point` with projection position.
 	**/
-	public inline function project( p : Point, ?out : Point ) : Point {
+	public inline function project( p : Point ) : Point {
 		var px = p.x - x;
 		var py = p.y - y;
 		var t = px * dx + py * dy;
-		if (out == null) out = new Point();
-		if( t < 0 ) 
-			out.set(x, y);
-		else if( t > lenSq ) 
-			out.set(x + dx, y + dy);
+		return if( t < 0 )
+			new Point(x, y);
+		else if( t > lenSq )
+			new Point(x + dx, y + dy);
 		else {
 			var tl2 = t * invLenSq;
-			out.set(x + tl2 * dx, y + tl2 * dy);
+			new Point(x + tl2 * dx, y + tl2 * dy);
 		}
-		return out;
 	}
 
 	/**

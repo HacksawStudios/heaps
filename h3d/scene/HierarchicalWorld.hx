@@ -8,7 +8,6 @@ typedef WorldData = {
 	var depth : Int;
 	var maxDepth : Int;
 	var onCreate : HierarchicalWorld -> Void;
-	var root : HierarchicalWorld;
 }
 
 class HierarchicalWorld extends Object {
@@ -19,12 +18,8 @@ class HierarchicalWorld extends Object {
 	static inline final UNLOCK_COLOR = 0xFFFFFF;
 	static inline final LOCK_COLOR = 0xFF0000;
 
-	var loadingQueue : Array<h3d.scene.RenderContext -> Bool>;
-	var loading : Bool = false;
-
 	public var data : WorldData;
-	var logicBounds : h3d.col.Bounds;
-	var objectBounds : h3d.col.Bounds;
+	var bounds : h3d.col.Bounds;
 	var subdivided(default, set) = false;
 	function set_subdivided(v : Bool) {
 		subdivided = v;
@@ -44,6 +39,9 @@ class HierarchicalWorld extends Object {
 		return data.maxDepth - data.depth;
 	}
 
+	var stateAccu = 0.0;
+	var stateCooldown = 0.1;
+
 	function updateGraphics() {
 		if ( debugGraphics == null )
 			return;
@@ -57,7 +55,7 @@ class HierarchicalWorld extends Object {
 	function createGraphics() {
 		if ( debugGraphics != null )
 			throw "??";
-		var b = logicBounds.clone();
+		var b = bounds.clone();
 		b.transform(getAbsPos().getInverse());
 		b.zMin = 0.0;
 		b.zMax = 0.1;
@@ -74,24 +72,17 @@ class HierarchicalWorld extends Object {
 		this.x = data.x;
 		this.y = data.y;
 		calcAbsPos();
-		logicBounds = new h3d.col.Bounds();
-		// TBD : z bounds? Negative & positive infinity causes debug bounds bugs.
-		var pseudoInfinity = 1e4;
+		bounds = new h3d.col.Bounds();
 		var halfSize = data.size >> 1;
-		logicBounds.addPoint(new h3d.col.Point(-halfSize, -halfSize, -pseudoInfinity));
-		logicBounds.addPoint(new h3d.col.Point(halfSize,halfSize, pseudoInfinity));
-		logicBounds.transform(absPos);
-		// bounds is twice larger than needed so object levels can be predicted using position and bounds only
-		objectBounds = logicBounds.clone();
-		objectBounds.scaleCenter(2.0);
+		// TBD : z bounds? Negative & positive infinity causes bounds to break.
+		var pseudoInfinity = 1e10;
+		bounds.addPoint(new h3d.col.Point(-halfSize, -halfSize, -pseudoInfinity));
+		bounds.addPoint(new h3d.col.Point(halfSize,halfSize, pseudoInfinity));
+		bounds.transform(absPos);
 
-		if ( data.depth == 0 ) {
-			data.root = this;
-			loadingQueue = [];
-		}
-		if ( data.depth != 0 && data.onCreate != null )
+		if ( data.depth != 0 && data.onCreate != null ) {
 			data.onCreate(this);
-		inheritCulled = true;
+		}
 	}
 
 	function init() {
@@ -104,24 +95,16 @@ class HierarchicalWorld extends Object {
 	}
 
 	function canSubdivide() {
-		return !subdivided && !isLeaf();
+		return true;
 	}
 
 	function createNode(parent, data) {
 		return new HierarchicalWorld(parent, data);
 	}
 
-	function subdivide(ctx : h3d.scene.RenderContext) {
-		if ( subdivided || getScene() == null ) // parent has been removed during dequeuing.
-			return false;
-		if ( !loading && data.depth > 0 ) {
-			loading = true;
-			getRoot().loadingQueue.insert(0, subdivide);
-			return false;
-		}
-		loading = false;
-		if ( !locked && !isClose(ctx) )
-			return false;
+	function subdivide() {
+		if ( subdivided || isLeaf() )
+			return;
 		subdivided = true;
 		var childSize = data.size >> 1;
 		for ( i in 0...2 ) {
@@ -134,13 +117,11 @@ class HierarchicalWorld extends Object {
 					y : j * childSize - halfChildSize,
 					depth : data.depth + 1,
 					maxDepth : data.maxDepth,
-					onCreate : data.onCreate,
-					root : data.root,
+					onCreate : data.onCreate
 				};
 				var node = createNode(this, childData);
 			}
 		}
-		return true;
 	}
 
 	function removeSubdivisions() {
@@ -160,11 +141,8 @@ class HierarchicalWorld extends Object {
 		return camPos.distance(new h2d.col.Point(chunkPos.x, chunkPos.y));
 	}
 
-	function isClose(ctx : h3d.scene.RenderContext) {
-		return calcDist(ctx) < data.size * data.subdivPow;
-	}
-
 	override function syncRec(ctx : h3d.scene.RenderContext) {
+
 		if ( debugGraphics == null && DEBUG ) {
 			createGraphics();
 		} else if ( debugGraphics != null && !DEBUG ) {
@@ -172,25 +150,22 @@ class HierarchicalWorld extends Object {
 			debugGraphics = null;
 		}
 
-		culled = !objectBounds.inFrustum(ctx.camera.frustum);
+		culled = !bounds.inFrustum(ctx.camera.frustum);
 		if ( !isLeaf() ) {
-			var close = isClose(ctx);
-			if ( FULL || close ) {
-				if ( canSubdivide() && !loading )
-					subdivide(ctx);
-			} else if ( !locked && !close ) {
+			var isClose = calcDist(ctx) < data.size * data.subdivPow;
+			if ( (isClose && stateAccu < 0.0) || (!isClose && stateAccu > 0.0) )
+				stateAccu = 0.0;
+			stateAccu += isClose ? ctx.elapsedTime : -ctx.elapsedTime;
+			if ( FULL || stateAccu > stateCooldown ) {
+				stateAccu = 0.0;
+				if ( canSubdivide() )
+					subdivide();
+			} else if ( !locked && -stateAccu > stateCooldown) {
+				stateAccu = 0.0;
 				removeSubdivisions();
 			}
 		}
 		super.syncRec(ctx);
-
-		if ( loadingQueue != null ) {
-			while ( loadingQueue.length > 0 ) {
-				var load = loadingQueue.pop();
-				if ( load(ctx) )
-					break;
-			}
-		}
 	}
 
 	override function emitRec(ctx : h3d.scene.RenderContext) {
@@ -210,7 +185,7 @@ class HierarchicalWorld extends Object {
 	}
 
 	public function containsAt(x : Float, y : Float) {
-		return logicBounds.contains(new h3d.col.Point(x, y, 0.0));
+		return bounds.contains(new h3d.col.Point(x, y, 0.0));
 	}
 
 	public function requestCreateAt(x : Float, y : Float, lock : Bool) {
@@ -218,39 +193,13 @@ class HierarchicalWorld extends Object {
 			return;
 		if ( lock )
 			locked = true;
-		if ( canSubdivide() ) {
-			loading = true;
-			subdivide(null);
-		}
+		subdivide();
 		for ( c in children ) {
 			var node = Std.downcast(c, HierarchicalWorld);
 			if ( node == null )
 				continue;
 			node.requestCreateAt(x, y, lock);
 		}
-	}
-
-	// Get the chunk at the given position, creating it if it doesn't exist
-	public function getChunkAtLock(x: Float, y: Float) : HierarchicalWorld {
-		requestCreateAt(x,y, true);
-
-		function rec(chunk: HierarchicalWorld, x:Float,y:Float) : HierarchicalWorld {
-			if (!chunk.containsAt(x,y))
-				return null;
-			if (chunk.isLeaf())
-				return chunk;
-			for ( c in chunk.children ) {
-				var node = Std.downcast(c, HierarchicalWorld);
-				if ( node == null )
-					continue;
-				var r = rec(node,x,y);
-				if (r != null)
-					return r;
-			}
-			return null;
-		}
-
-		return rec(this,x,y);
 	}
 
 	public function lockAt(x : Float, y : Float) {
@@ -288,7 +237,10 @@ class HierarchicalWorld extends Object {
 	}
 
 	public function getRoot() : h3d.scene.HierarchicalWorld {
-		return data.root;
+		var root : h3d.scene.Object = this;
+		while ( Std.isOfType(root.parent, HierarchicalWorld) )
+			root = root.parent;
+		return cast root;
 	}
 
 	public function refresh() {
@@ -299,11 +251,5 @@ class HierarchicalWorld extends Object {
 			if ( node != null )
 				node.remove();
 		}
-	}
-
-	override function onRemove() {
-		if ( data.depth == 0 )
-			loadingQueue = [];
-		super.onRemove();
 	}
 }

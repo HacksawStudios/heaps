@@ -17,11 +17,6 @@ class Primitive {
 	public var indexes : Indexes;
 
 	/**
-		Allow user to force a specific lod index. If set to -1, forced lod will be ignored.
-	**/
-	public var forcedLod : Int = -1;
-
-	/**
 		Current amount of references to this Primitive.
 		Use `incref` and `decref` methods to affect this value. If it reaches 0, it will be atuomatically disposed.
 	**/
@@ -88,7 +83,7 @@ class Primitive {
 	/**
 		Select the specified sub material before drawin. Used for internal usage.
 	**/
-	public function selectMaterial( material : Int, lod : Int ) {
+	public function selectMaterial( material : Int ) {
 	}
 
 	/**
@@ -133,17 +128,6 @@ class Primitive {
 	**/
 	public function toString() {
 		return Type.getClassName(Type.getClass(this)).split(".").pop();
-	}
-
-	/**
-	 	Return the LOD count.
-	**/
-	public function lodCount() {
-		return 1;
-	}
-
-	public function screenRatioToLod ( screenRatio : Float ) : Int {
-		return 0;
 	}
 
 }

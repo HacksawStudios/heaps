@@ -230,14 +230,19 @@ class BigTexture {
 				}
 			} else
 				q.loadingColor = true;
-			t.entry.loadBitmap(function(bmp) {
+			t.entry.loadBitmap(function(bmp, ?texture:h3d.mat.Texture) {
 				if( o.skip ) return;
 				if( !alphaChannel ) q.loadingColor = false;
 				lastEvent = haxe.Timer.stamp();
 				pending.remove(o);
-				var bmp = bmp.toBitmap();
-				var pixels = bmp.getPixels();
-				bmp.dispose();
+				var pixels = if( texture != null) {
+					texture.capturePixels();
+				} else {
+					var bmp = bmp.toBitmap();
+					final p = bmp.getPixels();
+					bmp.dispose();
+					p;
+				}
 				uploadPixels(pixels, q.x, q.y, alphaChannel);
 				loadCount--;
 				flush();

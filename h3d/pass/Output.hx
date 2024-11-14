@@ -64,7 +64,6 @@ class Output {
 	function drawObject( p : h3d.pass.PassObject ) {
 		ctx.drawPass = p;
 		ctx.engine.selectMaterial(p.pass);
-		p.obj.drawn = true;
 		@:privateAccess p.obj.draw(ctx);
 	}
 
@@ -84,7 +83,6 @@ class Output {
 		var buf = ctx.shaderBuffers, prevShader = null;
 		for( p in passes ) {
 			#if sceneprof h3d.impl.SceneProf.mark(p.obj); #end
-			ctx.globalPreviousModelView = p.obj.prevAbsPos ?? p.obj.absPos;
 			ctx.globalModelView = p.obj.absPos;
 			if( p.shader.hasGlobal(ctx.globalModelViewInverse_id.toInt()) )
 				ctx.globalModelViewInverse = p.obj.getInvPos();

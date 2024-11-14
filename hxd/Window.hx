@@ -114,9 +114,6 @@ class Window {
 	public function setCursorPos( x : Int, y : Int, emitEvent : Bool = false ) : Void {
 		throw "Not implemented";
 	}
-	
-	public function setCurrent() {
-	}
 
 	static var inst : Window = null;
 	public static function getInstance() : Window {
