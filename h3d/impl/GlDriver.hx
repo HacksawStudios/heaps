@@ -8,7 +8,6 @@ import h3d.mat.Stencil;
 
 #if js
 import hxd.impl.TypedArray;
-import js.html.webgl.RenderingContext;
 
 private typedef GL = js.html.webgl.GL2;
 private typedef Uniform = js.html.webgl.UniformLocation;
@@ -89,8 +88,6 @@ class GlDriver extends Driver {
 	static var UID = 0;
 	public var gl : GL;
 	public static var ALLOW_WEBGL2 = true;
-	// Set to 'mediump' to avoid high precision. Can give better performance, but will can mess up shadows for example.
-	public static var MAX_PRECISION = 'highp';
 	public var textureSupport:hxd.PixelFormat;
 	#end
 
@@ -929,6 +926,7 @@ class GlDriver extends Driver {
 		var tt = gl.createTexture();
 		var bind = getBindType(t);
 		var tt : Texture = { t : tt, width : t.width, height : t.height, internalFmt : GL.RGBA, pixelFmt : GL.UNSIGNED_BYTE, bits : -1, bind : bind, bias : 0, startMip : t.startingMip #if multidriver, driver : this #end };
+		trace('t.format: ${t.format}');
 		switch( t.format ) {
 		case RGBA:
 			// default
@@ -1002,6 +1000,12 @@ class GlDriver extends Driver {
 			checkMult4(t);
 			switch( n ) {
 			case 10: tt.internalFmt = hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4;
+			default: throw "Unsupported texture format "+t.format;
+			}
+		case UASTC4x4(n):
+			checkMult4(t);
+			switch( n ) {
+			case 9: tt.internalFmt = hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4;
 			default: throw "Unsupported texture format "+t.format;
 			}
 		case ETC(n):
@@ -1785,18 +1789,6 @@ class GlDriver extends Driver {
 	}
 
 	#if js
-	/**
-		Get the max supported precision to use for shaders
-		Limited by MAX_PRECISION value.
-	**/
-	public function getMaxPrecision() {
-		if ( gl.getShaderPrecisionFormat( RenderingContext.VERTEX_SHADER, RenderingContext.HIGH_FLOAT ).precision > 0 &&
-			gl.getShaderPrecisionFormat( RenderingContext.FRAGMENT_SHADER, RenderingContext.HIGH_FLOAT ).precision > 0 ) {
-			return MAX_PRECISION;
-		}
-		return 'mediump';
-	}
-
 	public function checkTextureSupport():hxd.PixelFormat {
 		var astcSupported = gl.getExtension('WEBGL_compressed_texture_astc') != null;
 		var dxtSupported = gl.getExtension('WEBGL_compressed_texture_s3tc') != null;

@@ -33,7 +33,7 @@ class BytesFileEntry extends FileEntry {
 		haxe.Timer.delay(onReady, 1);
 	}
 
-	override function loadBitmap( onLoaded : LoadedBitmap -> Void ) : Void {
+	override function loadBitmap( onLoaded : (bmp:LoadedBitmap, ?texture:h3d.mat.Texture) -> Void ) : Void {
 		#if js
 		var mime = switch fullPath.extension().toLowerCase() {
 			case 'jpg' | 'jpeg': 'image/jpeg';

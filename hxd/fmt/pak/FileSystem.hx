@@ -1,5 +1,8 @@
 package hxd.fmt.pak;
+#if !macro
 import hxd.fs.FileEntry;
+import hxd.fs.LoadedBitmap;
+#end
 #if (sys || nodejs)
 import sys.io.File;
 import sys.io.FileInput;
@@ -46,7 +49,7 @@ class FileSeek {
 
 @:allow(hxd.fmt.pak.FileSystem)
 @:access(hxd.fmt.pak.FileSystem)
-private class PakEntry extends FileEntry {
+private class PakEntry extends hxd.fs.FileEntry {
 
 	var fs : FileSystem;
 	var parent : PakEntry;
@@ -110,6 +113,45 @@ private class PakEntry extends FileEntry {
 		return tot;
 	}
 
+	override function loadBitmap( onLoaded : (bmp:hxd.fs.LoadedBitmap, ?texture:h3d.mat.Texture) -> Void ) : Void { 
+		#if js
+		final ext =  file.name.substring(file.name.indexOf('.')+1).toLowerCase();
+		trace('ext: ${ext}');
+	//	var mime = switch ext {
+	//		case 'jpg' | 'jpeg': 'image/jpeg';
+	//		case 'png': 'image/png';
+	//		case 'gif': 'image/gif';
+	//		case 'basis': 'binary/octet-stream';
+	//		case _: throw 'Cannot determine image encoding, try adding an extension to the resource path';
+	//	}
+	
+	trace('getting image texture for ${file.name}');
+		if(ext=='png') {
+			hxd.res.Ktx2.Ktx2Decoder.getTexture(new haxe.io.BytesInput(getBytes()), texture ->  {
+				trace('got image texture for ${file.name} $texture');
+				//final img = ctx.createImageData(texture.width, texture.height);
+				onLoaded(null, texture);
+			});
+			/*
+
+			hxd.res.BasisTextureLoader.getTexture(getBytes().getData(), texture ->  {
+				trace('got image texture for ${file.name} $texture');
+				//final img = ctx.createImageData(texture.width, texture.height);
+				onLoaded(null, texture);
+			});
+			*/
+		}
+			
+		// else {
+		//	var img = new js.html.Image();
+		//	img.onload = () -> onLoaded(new hxd.fs.LoadedBitmap(img));
+		//	img.src = 'data:$mime;base64,' + haxe.crypto.Base64.encode(getBytes());
+		//}
+		#else
+		throw "Not implemented";
+		#end
+	}
+
 	override function exists( name : String ) {
 		if( subs != null )
 			for( c in subs )
@@ -118,7 +160,8 @@ private class PakEntry extends FileEntry {
 		return false;
 	}
 
-	override function get( name : String ) : FileEntry {
+	override function get( name : String ) : hxd.fs.FileEntry {
+		trace('name: ${name}');
 		if( subs != null )
 			for( c in subs )
 				if( c.name == name )
@@ -127,7 +170,7 @@ private class PakEntry extends FileEntry {
 	}
 
 	override function iterator() {
-		return new hxd.impl.ArrayIterator<FileEntry>(cast subs);
+		return new hxd.impl.ArrayIterator<hxd.fs.FileEntry>(cast subs);
 	}
 
 }
@@ -145,6 +188,7 @@ class FileSystem implements hxd.fs.FileSystem {
 	public var totalReadCount = 0;
 
 	public function new() {
+		trace('new pak fs');
 		dict = new Map();
 		var f = new Data.File();
 		f.name = "<root>";
@@ -159,6 +203,7 @@ class FileSystem implements hxd.fs.FileSystem {
 	}
 
 	public function loadPak( file : String ) {
+		trace('file: ${file}');
 		var index = files.length;
 		files.push({ path : file, inputs : [] });
 		var s = getFile(index);
@@ -185,10 +230,14 @@ class FileSystem implements hxd.fs.FileSystem {
 		files.push(info);
 		var pak = new Reader(file).readHeader();
 		if( pak.root.isDirectory ) {
-			for( f in pak.root.content )
+			for( f in pak.root.content )	{
+				trace('f.name: ${f.name}');
 				addRec(root, f.name, f, index, pak.headerSize);
-		} else
+				}
+		} else {
+trace('pak.root.name: ${pak.root.name}');
 			addRec(root, pak.root.name, pak.root, index, pak.headerSize);
+		}
 	}
 
 	public function dispose() {
@@ -236,6 +285,7 @@ class FileSystem implements hxd.fs.FileSystem {
 			ent.pakFile = pakFile;
 		} else {
 			ent = new PakEntry(this, parent, f, pakFile);
+			trace('addRec path: ${path}');
 			dict.set(path, ent);
 			parent.subs.push(ent);
 		}
@@ -246,11 +296,12 @@ class FileSystem implements hxd.fs.FileSystem {
 			f.dataPosition += delta;
 	}
 
-	public function getRoot() : FileEntry {
+	public function getRoot() : hxd.fs.FileEntry {
 		return root;
 	}
 
-	public function get( path : String ) : FileEntry {
+	public function get( path : String ) : hxd.fs.FileEntry {
+		trace('path: ${path} ${dict.exists(path)}');
 		var f = dict.get(path);
 		if( f == null ) throw new hxd.res.NotFound(path);
 		return f;
@@ -260,7 +311,8 @@ class FileSystem implements hxd.fs.FileSystem {
 		return dict.exists(path);
 	}
 
-	public function dir( path : String ) : Array<FileEntry> {
+	public function dir( path : String ) : Array<hxd.fs.FileEntry> {
+		trace('path: ${path}');
 		var f = dict.get(path);
 		if( f == null ) throw new hxd.res.NotFound(path);
 		if( !f.isDirectory ) throw path+" is not a directory";

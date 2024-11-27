@@ -1,5 +1,7 @@
 package hxd.res;
 
+
+
 enum abstract ImageFormat(Int) {
 	var Jpg = 0;
 	var Png = 1;
@@ -9,6 +11,7 @@ enum abstract ImageFormat(Int) {
 	var Raw = 5;
 	var Hdr = 6;
 	var Basis = 7;
+	var Ktx2 = 8;
 
 	/*
 		Tells if we might not be able to directly decode the image without going through a loadBitmap async call.
@@ -20,7 +23,7 @@ enum abstract ImageFormat(Int) {
 		#if hl
 		return false;
 		#else
-		return this == Jpg.toInt();
+		return this == Jpg.toInt() || this == Ktx2.toInt();
 		#end
 	}
 
@@ -37,6 +40,7 @@ enum abstract ImageFormat(Int) {
 			case Raw: "RAW";
 			case Hdr: "HDR";
 			case Basis: "BASIS";
+			case Ktx2: "KTX2";
 		};
 	}
 }
@@ -98,7 +102,9 @@ class Image extends Resource {
 		inf = new ImageInfo();
 		var f = entry.open();
 		f.fetch(256); // should be enough to fit DDS header
-		var head = try f.readUInt16() catch (e:haxe.io.Eof) 0;
+		var headBytes = try f.read(2) catch (e:haxe.io.Eof) null;
+		var head = headBytes.getUInt16(0);
+		trace('head: ${head}');
 		switch (head) {
 			case 0xD8FF: // JPG
 				inf.dataFormat = Jpg;
@@ -117,6 +123,8 @@ class Image extends Resource {
 					}
 				}
 			case 0x5089: // PNG
+			trace('png');
+
 				inf.dataFormat = Png;
 				f.bigEndian = true;
 				f.skip(6); // header
@@ -244,13 +252,93 @@ class Image extends Resource {
 					throw entry.path + " has unsupported 4CC " + fid;
 				}
 			case 0x4273:
+				trace('basis');
+
+				//final sig = f.readUInt16();
+				final version = f.readUInt16();
+				final headerSize = f.readUInt16();
+				final headerCrc16 = f.readUInt16();
+				final size = f.read(4).toHex();
+				final crc16 = f.readUInt16();
+				final slices = f.read(3).toHex(); // Total # slices
+				final images = f.read(3).toHex();  // Total # images
+				/*
+				cETC1S = 0,
+				cUASTC4x4 = 1,
+				cUASTC_HDR_4x4 = 2
+				*/
+				final fmt = f.read(1).toHex();
+				final flags = f.readUInt16();
+				final texType = f.read(1).toHex();
 				inf.dataFormat = Basis;
-				f.skip(63);
 				inf.pixelFormat = BGRA;
 				var slicesPos = f.readInt32();
 				f.skip(slicesPos-42);
 				inf.width = f.readUInt16();
 				inf.height = f.readUInt16();
+			case 0x4BAB:
+				trace('ktx2 ');
+				#if js
+				final ktx2 = hxd.res.Ktx2.readFile(new haxe.io.BytesInput(@:privateAccess f.cache));
+				trace('ktx2.header: ${ktx2.header}');
+				inf.pixelFormat = switch ktx2.dfd.colorModel {
+					case hxd.res.Ktx2.DFDModel.ETC1S: S3TC(1);
+					case hxd.res.Ktx2.DFDModel.UASTC: UASTC4x4(9);
+					default: throw 'Unsupported colorModel in ktx2 file ${ktx2.dfd.colorModel}';
+				}
+				inf.mipLevels = ktx2.header.levelCount;
+
+				inf.width = ktx2.header.pixelWidth;
+				inf.height = ktx2.header.pixelHeight;
+				inf.dataFormat = Ktx2;
+				#end
+/*
+			//	f.skip(header.dfdByteOffset-56);
+
+	 				pos += level.length;
+
+					final dfdBlock = {
+						vendorId: dfdReader.skipBytes(4).readUint16(),
+						descriptorType: dfdReader.readUint16(),
+						versionNumber: dfdReader.readUint16(),
+						descriptorBlockSize: dfdReader.readUint16(),
+						colorModel: dfdReader.readUint8(),
+						colorPrimaries: dfdReader.readUint8(),
+						transferFunction: dfdReader.readUint8(),
+						flags: dfdReader.readUint8(),
+						texelBlockDimension: {
+							x: dfdReader.readUint8() + 1,
+							y: dfdReader.readUint8() + 1,
+							z: dfdReader.readUint8() + 1,
+							w: dfdReader.readUint8() + 1,
+						},
+						bytesPlane: [
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+							dfdReader.readUint8(),
+						],
+						numSamples: 0,
+						samples: new Array<IKTX2_Sample>(),
+				}
+				offsetInFile += levelReader.byteOffset;
+				final dfdTotalSize = f.readInt32();
+				trace('dfdTotalSize: ${dfdTotalSize}');
+
+
+
+
+					inf.pixelFormat = PixelFormat.S3TC(1);
+					inf.mipLevels = levelCount;
+
+					inf.width = pixelWidth;
+					inf.height = pixelHeight;
+					inf.dataFormat = Ktx2;
+*/
 			case 0x3F23: // HDR RADIANCE
 
 				inf.dataFormat = Hdr;
@@ -282,7 +370,7 @@ class Image extends Resource {
 				inf.width = inf.height = size;
 
 			default:
-				throw "Unsupported texture format " + entry.path;
+				throw "Unsupported texture format " + headBytes.toHex() + " " + entry.path;
 		}
 
 		f.close();
@@ -300,7 +388,7 @@ class Image extends Resource {
 		}
 
 		customCheckInfo(this);
-
+trace('inf: ${inf}');
 		return inf;
 	}
 
@@ -444,24 +532,29 @@ class Image extends Resource {
 			case Hdr:
 				var data = hxd.fmt.hdr.Reader.decode(entry.getBytes(), false);
 				pixels = new hxd.Pixels(data.width, data.height, data.bytes, inf.pixelFormat);
-			case Basis:
+			case Basis, Ktx2:
 				#if js
 				var bytes = entry.getBytes();
 				var driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
 				var f = switch(driver.checkTextureSupport()) {
-					case hxd.PixelFormat.S3TC(_): hxd.PixelFormat.S3TC(0);
+					case hxd.PixelFormat.S3TC(_): hxd.PixelFormat.S3TC(1);
 					case hxd.PixelFormat.ETC(_): hxd.PixelFormat.ETC(0);
 					case hxd.PixelFormat.ASTC(_): hxd.PixelFormat.ASTC(10);
 					case hxd.PixelFormat.PVRTC(_): hxd.PixelFormat.PVRTC(9);
-					default: throw 'Unsupported basis texture';
+					default: throw 'Unsupported basis/KTX2 texture';
 				}
-				pixels = new hxd.Pixels(inf.width, inf.height, bytes, f);
+				trace('bytes: ${bytes.length}');
+				trace('inf: ${inf}');
+				pixels = new hxd.Pixels(inf.width, inf.height, bytes, inf.pixelFormat);
 				#else
-				throw 'Basis only supported on js target';
+				throw 'Basis/KTX2 only supported on js target';
 				#end
 		}
+		trace('fmt: ${fmt}');
 		if (fmt != null)
 			pixels.convert(fmt);
+		trace('pixels: ${pixels}');
+
 		return pixels;
 	}
 
@@ -526,24 +619,21 @@ class Image extends Resource {
 		getInfo();
 		var bmp = new hxd.BitmapData(inf.width, inf.height);
 		var pixels = getPixels();
+		trace('pixels: ${pixels}');
 		bmp.setPixels(pixels);
 		pixels.dispose();
 		return bmp;
 	}
 
 	function watchCallb() {
-		var prevInfo = inf;
+		var w = inf.width, h = inf.height;
 		inf = null;
-		try {
-			getInfo();
-		} catch ( e : Dynamic ) {
-			inf = prevInfo;
-			return;
-		}
 		var s = getSize();
-		if (prevInfo.width != s.width || prevInfo.height != s.height)
+		if (w != s.width || h != s.height)
 			tex.resize(s.width, s.height);
 		tex.realloc = null;
+		trace('***');
+
 		loadTexture();
 	}
 
@@ -561,19 +651,28 @@ class Image extends Resource {
 			tex.width = inf.width;
 			tex.height = inf.height;
 		}
+		trace('*** $data');
 		loadTexture(data);
 	}
 
 	function loadTexture(?asyncData:haxe.io.Bytes) {
+		trace('getFormat().useLoadBitmap: ${getFormat().useLoadBitmap}');
 		if (getFormat().useLoadBitmap) {
 			// use native decoding
 			tex.flags.set(Loading);
-			entry.loadBitmap(function(bmp) {
-				var bmp = bmp.toBitmap();
+			entry.loadBitmap(function(bmp, ?texture) {
+				trace('*** $texture');
 				tex.alloc();
-				tex.uploadBitmap(bmp);
-				bmp.dispose();
-				tex.realloc = () -> loadTexture();
+				if(texture!=null) {
+					tex = texture;
+				} else {
+					var bmp = bmp.toBitmap();
+					tex.uploadBitmap(bmp);
+					bmp.dispose();
+				}
+				tex.realloc = () -> {
+					loadTexture();
+				}
 				tex.flags.unset(Loading);
 				@:privateAccess if (tex.waitLoads != null) {
 					var arr = tex.waitLoads;
@@ -581,6 +680,7 @@ class Image extends Resource {
 					for (f in arr)
 						f();
 				}
+				trace('loaded: ${entry.name} $texture');
 
 				if (ENABLE_AUTO_WATCH)
 					watch(watchCallb);
@@ -589,21 +689,34 @@ class Image extends Resource {
 		}
 
 		function load() {
-			if ((enableAsyncLoading || tex.flags.has(AsyncLoading)) && asyncData == null && ASYNC_LOADER != null && ASYNC_LOADER.isSupported(this))
+			trace('enableAsyncLoading: ${enableAsyncLoading}');
+			trace('tex.flags.has(AsyncLoading): ${tex.flags.has(AsyncLoading)}');
+			trace('ASYNC_LOADER.isSupported(this): ${ASYNC_LOADER.isSupported(this)}');
+			trace('asyncData: ${asyncData}');
+
+//enableAsyncLoading = true;
+		//	asyncData=null;
+			if ((enableAsyncLoading || tex.flags.has(AsyncLoading)) && asyncData == null && ASYNC_LOADER.isSupported(this)) {
+
+				trace('inf.width: ${inf.width}');
 				@:privateAccess {
-				tex.dispose();
-				tex.format = RGBA;
-				tex.width = 1;
-				tex.height = 1;
-				tex.customMipLevels = 1;
-				tex.flags.set(Loading);
-				tex.alloc();
-				tex.uploadPixels(BLACK_1x1);
-				tex.width = inf.width;
-				tex.height = inf.height;
-				ASYNC_LOADER.load(this);
-				tex.realloc = () -> loadTexture();
-				return;
+					tex.dispose();
+					tex.format = RGBA;
+					tex.width = 1;
+					tex.height = 1;
+					tex.customMipLevels = 1;
+					tex.flags.set(Loading);
+					tex.alloc();
+					tex.uploadPixels(BLACK_1x1);
+					tex.width = inf.width;
+					tex.height = inf.height;
+					ASYNC_LOADER.load(this);
+					tex.realloc =() -> {
+						trace('***');
+						loadTexture();
+					}
+					return;
+				}
 			}
 			var t0 = haxe.Timer.stamp();
 			// immediately loading the PNG is faster than going through loadBitmap
@@ -638,6 +751,7 @@ class Image extends Resource {
 					for (layer in 0...tex.layerCount) {
 						for (mip in 0...inf.mipLevels) {
 							var pixels = getPixels(tex.format, layer * inf.mipLevels + mip);
+							trace('pixels: ${pixels.dataSize}');
 							tex.uploadPixels(pixels, mip, layer);
 							pixels.dispose();
 						}
@@ -649,10 +763,14 @@ class Image extends Resource {
 				#if hl Sys.println #else trace #end (fmtStr + " " + Std.int(time) + "." + (Std.int(time * 10) % 10) + "ms " + inf.width + "x" + inf.height
 					+ " " + entry.path);
 			}
-			tex.realloc = () -> loadTexture();
+			tex.realloc = () -> {
+		trace('***');
+					loadTexture();
+				}
 			if (ENABLE_AUTO_WATCH)
 				watch(watchCallb);
 		}
+		trace('entry.isAvailable: ${entry.isAvailable}');
 		if (entry.isAvailable)
 			load();
 		else
@@ -665,6 +783,7 @@ class Image extends Resource {
 		getInfo();
 		var flags:Array<h3d.mat.Data.TextureFlags> = [NoAlloc];
 		var fmt = inf.pixelFormat;
+		trace('fmt: ${inf}');
 		// for these formats, we will ignore the pixel format and always use native one
 		// our decoders most likely allows to decode in correct format anyway
 		if (fmt == BGRA || fmt == ARGB || fmt == RGBA)
@@ -684,16 +803,24 @@ class Image extends Resource {
 		tex.setName(entry.path);
 		setupTextureFlags(tex);
 		// DirectX12 texture array triggers an access violation.
-		if (tex.flags.has(IsArray) || !tex.flags.has(LazyLoading))
+		tex.flags.set(LazyLoading);
+		if (tex.flags.has(IsArray) || !tex.flags.has(LazyLoading)) {
+			trace('*** ${entry.path}');
 			loadTexture();
-		else
-			tex.realloc = () -> loadTexture();
+		//	haxe.Timer.delay(() -> loadTexture(), 500);
+		}
+		else {
+			tex.realloc =() -> {
+		trace('***');
+					loadTexture();
+				}
+		}
 		return tex;
 	}
 
 	public function toTile():h2d.Tile {
-		getInfo();
-		return h2d.Tile.fromTexture(toTexture()).sub(0, 0, inf.width, inf.height);
+		final tex = toTexture();
+		return h2d.Tile.fromTexture(tex).sub(0, 0, tex.width, tex.height);
 	}
 
 	public static dynamic function setupTextureFlags(tex:h3d.mat.Texture) {}

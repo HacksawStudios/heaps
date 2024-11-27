@@ -14,6 +14,7 @@ class Loader extends h2d.Object {
 		this.s2d = s2d;
 		this.bg = new h2d.Graphics(this);
 		this.onDone = onDone;
+		trace('init loader');
 		if( hxd.res.Loader.currentInstance == null )
 			hxd.res.Loader.currentInstance = new hxd.res.Loader(new FileSystem());
 		fs = Std.downcast(hxd.res.Loader.currentInstance.fs, FileSystem);
@@ -35,6 +36,7 @@ class Loader extends h2d.Object {
 	}
 
 	override function sync(ctx:h2d.RenderContext)  {
+		trace('sync loader');
 		super.sync(ctx);
 		if( cur == null ) {
 
@@ -63,6 +65,7 @@ class Loader extends h2d.Object {
 					fs.addPak(new FileSystem.FileInput(bytes));
 					resCount++;
 					cur = null;
+					trace('name:$name loaded');
 				} catch( e : Dynamic ) {
 					cur.onError(e);
 				}

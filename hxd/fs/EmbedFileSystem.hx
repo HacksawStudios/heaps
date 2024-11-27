@@ -47,7 +47,7 @@ private class EmbedEntry extends FileEntry {
 		#end
 	}
 
-	override function loadBitmap( onLoaded : LoadedBitmap -> Void ) : Void {
+	override function loadBitmap( onLoaded : (bpm:LoadedBitmap, ?texture:h3d.mat.Texture) -> Void ) : Void {
 		#if js
 		// directly get the base64 encoded data from resources
 		var rawData = null;
