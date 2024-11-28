@@ -867,13 +867,14 @@ enum TranscoderType {
 	cTFBGR5655; // Not used
 	cTFRGBA44446; // Not used
 }
-@:keep
 
+@:keep
 enum BasisFormat {
 	ETC1S;
 	UASTC;
 	UASTC_HDR;
 }
+
 @:keep
 class EngineFormat {
 	public static final RGBAFormat = TexFormats.RGBAFormat;
