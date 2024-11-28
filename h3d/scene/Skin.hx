@@ -76,6 +76,7 @@ class Skin extends MultiMaterial {
 	var paletteChanged : Bool;
 	var skinShader : h3d.shader.SkinBase;
 	var jointsGraphics : Graphics;
+	var additivePose : Array<h3d.Matrix>;
 
 	public var showJoints : Bool;
 	public var enableRetargeting : Bool = true;
@@ -168,6 +169,17 @@ class Skin extends MultiMaterial {
 		return skinData;
 	}
 
+	public function setJointRelPosition( name : String, pos : h3d.Matrix, additive = false ) {
+		var j = skinData.namedJoints.get(name);
+		if( j == null ) return;
+		if( additive ) {
+			if( additivePose == null ) additivePose = [];
+			additivePose[j.index] = pos;
+		} else
+			currentRelPose[j.index] = pos;
+		jointsUpdated = true;
+	}
+
 	public function setSkinData( s, shaderInit = true ) {
 		skinData = s;
 		jointsUpdated = true;
@@ -242,6 +254,10 @@ class Skin extends MultiMaterial {
 				m.multiply3x4inline(r, absPos);
 			else
 				m.multiply3x4inline(r, currentAbsPose[j.parent.index]);
+			if( additivePose != null ) {
+				var a = additivePose[id];
+				if( a != null ) m.multiply3x4inline(a, m);
+			}
 			if( bid >= 0 )
 				currentPalette[bid].multiply3x4inline(j.transPos, m);
 		}

@@ -1789,6 +1789,7 @@ class GlDriver extends Driver {
 	}
 
 	#if js
+
 	public function checkTextureSupport():hxd.PixelFormat {
 		var astcSupported = gl.getExtension('WEBGL_compressed_texture_astc') != null;
 		var dxtSupported = gl.getExtension('WEBGL_compressed_texture_s3tc') != null;

@@ -23,7 +23,7 @@ enum abstract ImageFormat(Int) {
 		#if hl
 		return false;
 		#else
-		return this == Jpg.toInt() || this == Ktx2.toInt();
+		return this == Jpg.toInt() /*|| this == Ktx2.toInt();
 		#end
 	}
 
@@ -689,10 +689,6 @@ trace('inf: ${inf}');
 		}
 
 		function load() {
-			trace('enableAsyncLoading: ${enableAsyncLoading}');
-			trace('tex.flags.has(AsyncLoading): ${tex.flags.has(AsyncLoading)}');
-			trace('ASYNC_LOADER.isSupported(this): ${ASYNC_LOADER.isSupported(this)}');
-			trace('asyncData: ${asyncData}');
 
 //enableAsyncLoading = true;
 		//	asyncData=null;

@@ -127,11 +127,13 @@ private class PakEntry extends hxd.fs.FileEntry {
 	
 	trace('getting image texture for ${file.name}');
 		if(ext=='png') {
+			/*
 			hxd.res.Ktx2.Ktx2Decoder.getTexture(new haxe.io.BytesInput(getBytes()), texture ->  {
 				trace('got image texture for ${file.name} $texture');
 				//final img = ctx.createImageData(texture.width, texture.height);
 				onLoaded(null, texture);
 			});
+			*/
 			/*
 
 			hxd.res.BasisTextureLoader.getTexture(getBytes().getData(), texture ->  {
