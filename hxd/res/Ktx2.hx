@@ -902,20 +902,6 @@ class TexFormats {
 	public static final RGB_ETC2_Format  = 0x9274; 
 	public static final RGB_PVRTC_4BPPV1_Format  = 0x8C02; 
 	public static final RGBA_S3TC_DXT1_Format  = 0x83F1; 
-	/*
-	public static final COMPRESSED_RGBA_BPTC_UNORM_EXT = 0x8e8c;
-	public static final COMPRESSED_RGBA_ASTC_4X4_KHR = 0x93b0;
-	public static final COMPRESSED_RGB_S3TC_DXT1_EXT = 0x83f0;
-	public static final COMPRESSED_RGBA_S3TC_DXT5_EXT = 0x83f3;
-	public static final COMPRESSED_RGBA_PVRTC_4BPPV1_IMG = 0x8c02;
-	public static final COMPRESSED_RGB_PVRTC_4BPPV1_IMG = 0x8c00;
-	public static final COMPRESSED_RGBA8_ETC2_EAC = 0x9278;
-	public static final COMPRESSED_RGB8_ETC2 = 0x9274;
-	public static final COMPRESSED_RGB_ETC1_WEBGL = 0x8d64;
-	public static final RGBA8Format = 0x8058;
-	public static final R8Format = 0x8229;
-	public static final RG8Format = 0x822b;
-	*/
 }
 
 @:keep
@@ -1014,10 +1000,6 @@ enum SourceTextureFormat {
 	ETC1S;
 	UASTC4x4;
 }
-
-
-
-
 
 typedef WorkerTask = {
 	worker:js.html.Worker,
@@ -1315,7 +1297,7 @@ function basisWorker() {
 
 	function getTranscoderFormat( basisFormat, width, height, hasAlpha ) {
 		const options = OPTIONS[ basisFormat ];
-		console.log(`options:${options}`);
+		console.log(`options:${JSON.stringify(options)}`);
 		for ( let i = 0; i < options.length; i ++ ) {
 			const opt = options[ i ];
 			console.log(`config:${JSON.stringify(config)}`);
@@ -1364,6 +1346,7 @@ function basisWorker() {
 	}
 }";
 }
+
 @:structInit class BasisWorkerMessage {
 	public final id:String;
 	public final type = 'transcode';
@@ -1378,6 +1361,7 @@ function basisWorker() {
 	};
 	public final error:String = null;
 }
+	
 /*
 
 class WorkerPool {
