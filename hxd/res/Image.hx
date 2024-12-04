@@ -23,7 +23,7 @@ enum abstract ImageFormat(Int) {
 		#if hl
 		return false;
 		#else
-		return this == Jpg.toInt() /*|| this == Ktx2.toInt();
+		return this == Jpg.toInt() || this == Ktx2.toInt();
 		#end
 	}
 
@@ -282,7 +282,7 @@ class Image extends Resource {
 				final ktx2 = hxd.res.Ktx2.readFile(new haxe.io.BytesInput(@:privateAccess f.cache));
 				trace('ktx2.header: ${ktx2.header}');
 				inf.pixelFormat = switch ktx2.dfd.colorModel {
-					case hxd.res.Ktx2.DFDModel.ETC1S: S3TC(1);
+					case hxd.res.Ktx2.DFDModel.ETC1S: ETC(0);
 					case hxd.res.Ktx2.DFDModel.UASTC: UASTC4x4(9);
 					default: throw 'Unsupported colorModel in ktx2 file ${ktx2.dfd.colorModel}';
 				}
@@ -790,6 +790,7 @@ trace('inf: ${inf}');
 			flags.push(MipMapped);
 			flags.push(ManualMipMapGen);
 		}
+		trace('==================> fmt: ${fmt}');
 		if (inf.layerCount > 1)
 			tex = new h3d.mat.TextureArray(inf.width, inf.height, inf.layerCount, flags, fmt);
 		else

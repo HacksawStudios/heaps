@@ -1327,6 +1327,7 @@ class GlDriver extends Driver {
 			pixels = pixels.clone();
 		}
 		#end
+		trace('t.format: ${t.format}');
 		var buffer : ArrayBufferView = switch( t.format ) {
 		case RGBA32F, R32F, RG32F, RGB32F: new Float32Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen>>2);
 		case RGBA16F, R16F, RG16F, RGB16F, RGBA16U, R16U, RG16U, RGB16U: new Uint16Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen>>1);

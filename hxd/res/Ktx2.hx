@@ -153,19 +153,34 @@ class Ktx2 {
 					final bitLength = bytes.readByte() + 1;
 					final channelType = bytes.readByte();
 					final channelFlags =  (channelType & 0xf0) >> 4;
+					final samplePosition =  [
+						bytes.readByte() /* samplePosition0 */,
+						bytes.readByte() /* samplePosition1 */,
+						bytes.readByte() /* samplePosition2 */,
+						bytes.readByte() /* samplePosition3 */,
+					];
+					final sampleLower = bytes.readUInt16() + bytes.readUInt16();
+					final sampleUpper = bytes.readUInt16() + bytes.readUInt16();
+					/*
+					final sampleLower:UInt = if (lowerBytes & 0x10000000 != 0) {
+						lowerBytes - 0x10000000;
+					} else {
+						lowerBytes;
+					}
+					final sampleUpper:UInt  = if (upperBytes & 0x10000000 != 0) {
+						upperBytes - 0x10000000;
+					} else {
+						upperBytes;
+					}
+						*/
 					final sample:KTX2Sample = {
-						bitOffset: bytes.readUInt16(),
-						bitLength: bytes.readByte() + 1,
+						bitOffset: bitOffset,
+						bitLength: bitLength,
 						channelType: channelType & 0x0F,
 						channelFlags: channelFlags,
-						samplePosition: [
-							bytes.readByte() /* samplePosition0 */,
-							bytes.readByte() /* samplePosition1 */,
-							bytes.readByte() /* samplePosition2 */,
-							bytes.readByte() /* samplePosition3 */,
-						],
-						sampleLower: bytes.readInt32(),
-						sampleUpper: bytes.readInt32(),
+						samplePosition: samplePosition,
+						sampleLower: sampleLower,
+						sampleUpper: sampleUpper,
 					};
 					sample;
 				}
@@ -202,6 +217,7 @@ class Ktx2Decoder {
 
 
 	public static function getTexture(bytes:haxe.io.BytesInput, cb:(texture:h3d.mat.Texture) -> Void) {
+		trace('################## get texture');
 		_workerConfig = detectSupport();
 		createTexture(bytes, cb);
 	}
@@ -210,7 +226,7 @@ class Ktx2Decoder {
 		final driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
 		final transcoderFormat = driver.textureSupport;
 		driver.gl.getExtension('WEBGL_compressed_texture_s3tc');
-		trace('transcoderFormat: ${transcoderFormat}');
+		trace('transcoderFormat::: ${transcoderFormat}');
 		return switch transcoderFormat {
 			case ETC(v): {
 				format: TranscoderFormat.ETC1,
@@ -304,6 +320,7 @@ class Ktx2Decoder {
 		final w = ktx.header.pixelWidth;
 		final h = ktx.header.pixelHeight;
 		trace('ktx.dfd.colorModel: ${ktx.dfd.colorModel}');
+		/*
 		final texFormat = switch ktx.dfd.colorModel {
 			case hxd.res.Ktx2.DFDModel.ETC1S: KtxTranscodeTarget.ETC1S({}, {
 				fmt: CompressedFormat.ETC1,
@@ -317,7 +334,8 @@ class Ktx2Decoder {
 			});
 			default: throw 'Unsupported colorModel in ktx2 file ${ktx.dfd.colorModel}';
 		}
-
+trace('texFormat: ${texFormat}');
+*/
 		getWorker().then(task -> {
 			final worker = task.worker;
 			final taskID = _workerNextTaskID++;
@@ -390,6 +408,8 @@ class Ktx2Decoder {
 						create(hxd.PixelFormat.S3TC(1));
 					case EngineFormat.RGB_ETC1_Format:
 						create(hxd.PixelFormat.ETC(0));
+					case EngineFormat.RGB_ETC2_Format:
+						create(hxd.PixelFormat.ETC(1));
 					case EngineFormat.RGB_PVRTC_4BPPV1_Format, EngineFormat.RGBA_PVRTC_4BPPV1_Format:
 						create(hxd.PixelFormat.PVRTC(9));
 					default:
@@ -1097,18 +1117,20 @@ function basisWorker() {
 			cleanup();
 			throw new Error( 'KTX2Loader:	Invalid or unsupported .ktx2 file' );
 		}
-
+console.log(` ktx2File.isETC1S() : ${ ktx2File.isETC1S() }`)
+		console.log(`ktx2File.isUASTC():${ktx2File.isUASTC()}`);
 		let basisFormat;
 		if ( ktx2File.isUASTC() ) {
 			basisFormat = BasisFormat.UASTC;
 		} else if ( ktx2File.isETC1S() ) {
 			basisFormat = BasisFormat.ETC1S;
 		} else if ( ktx2File.isHDR() ) {
-			basisFormat = BasisFormat.UASTC_HDR;
+					basisFormat = BasisFormat.UASTC_HDR;
 		} else {
 			throw new Error( 'KTX2Loader: Unknown Basis encoding' );
 		}
-		console.log(`ktx2File.isUASTC():${ktx2File.isETC1S()}`);
+						
+		console.log(`basisFormat:${basisFormat}`);
 		const width = ktx2File.getWidth();
 		const height = ktx2File.getHeight();
 		const layerCount = ktx2File.getLayers() || 1;
@@ -1236,25 +1258,6 @@ function basisWorker() {
 			priorityUASTC: 4,
 			needsPowerOfTwo: false,
 		},
-		{
-			if: 'pvrtcSupported',
-			basisFormat: [ BasisFormat.ETC1S, BasisFormat.UASTC ],
-			transcoderFormat: [ TranscoderFormat.PVRTC1_4_RGB, TranscoderFormat.PVRTC1_4_RGBA ],
-			engineFormat: [ EngineFormat.RGB_PVRTC_4BPPV1_Format, EngineFormat.RGBA_PVRTC_4BPPV1_Format ],
-			engineType: [ EngineType.UnsignedByteType ],
-			priorityETC1S: 5,
-			priorityUASTC: 6,
-			needsPowerOfTwo: true,
-		},
-		{
-			if: 'bptcSupported',
-			basisFormat: [ BasisFormat.UASTC_HDR ],
-			transcoderFormat: [ TranscoderFormat.BC6H ],
-			engineFormat: [ EngineFormat.RGB_BPTC_UNSIGNED_Format ],
-			engineType: [ EngineType.HalfFloatType ],
-			priorityHDR: 1,
-			needsPowerOfTwo: false,
-		},
 
 		// Uncompressed fallbacks.
 
@@ -1298,8 +1301,19 @@ function basisWorker() {
 	function getTranscoderFormat( basisFormat, width, height, hasAlpha ) {
 		const options = OPTIONS[ basisFormat ];
 		console.log(`options:${JSON.stringify(options)}`);
-		for ( let i = 0; i < options.length; i ++ ) {
+		console.log(` isPowerOfTwo( width ): ${isPowerOfTwo( width )}`)
+		const opts = FORMAT_OPTIONS.filter( ( opt ) => {
+			console.log(`********* ${JSON.stringify(opt.basisFormat)} ${BasisFormat.ETC1S}`)
+
+			const val = opt.basisFormat;
+			console.log(`val: ${val}`);
+			return val.includes( BasisFormat.ETC1S );
+ 		} );
+		console.log(`********* ${JSON.stringify(opts)}`)
+		for ( let i = 0; i < options.length; i++ ) {
 			const opt = options[ i ];
+			console.log(`hasAlpha: ${hasAlpha} opt.transcoderFormat.length:${opt.transcoderFormat.length}`)
+			console.log(`opt.basisFormat.includes( basisFormat ): ${opt.basisFormat.includes( basisFormat )}`)
 			console.log(`config:${JSON.stringify(config)}`);
 			console.log(`Opt: ${JSON.stringify(opt)}`);
 			if ( opt.if && ! config[ opt.if ] ) continue;
