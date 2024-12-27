@@ -124,9 +124,9 @@ class PakLoader implements AsyncLoader {
 
 	public function isSupported( img : hxd.res.Image ) {
 		return switch( img.getFormat() ) {
-			case Ktx2, Basis, Png, Jpg: true;
+			case Ktx2, Png, Jpg: true;
 			default: false;
-			}
+		}
 	}
 
 	public function load( img : hxd.res.Image ) {

@@ -23,9 +23,7 @@ enum PixelFormat {
 	RG16U;
 	RGB16U;
 	RGBA16U;
-	PVRTC( ?v : Int);
 	ASTC( ?v : Int );
-	UASTC4x4( ?v : Int );
 	ETC( ?v : Int );
 	S3TC( ?v : Int );
 	Depth16;
@@ -38,6 +36,7 @@ enum abstract ASTC_FORMAT(Int) from Int to Int {
 }
 
 enum abstract DXT_FORMAT(Int) from Int to Int {
+	final RGB_DXT1 = 0x83F0;
 	final RGBA_DXT1 = 0x83F1;
 	final RGBA_DXT3 = 0x83F2;
 	final RGBA_DXT5 = 0x83F3;
@@ -45,9 +44,5 @@ enum abstract DXT_FORMAT(Int) from Int to Int {
 
 enum abstract ETC_FORMAT(Int) from Int to Int {
 	final RGB_ETC1 = 0x8D64;
-}
-
-enum abstract PVRTC_FORMAT(Int) from Int to Int {
-	final RGB_4BPPV1 = 0x8C00;
-	final RGBA_4BPPV1 = 0x8C02;
+	final RGBA_ETC2 = 0x9278;
 }

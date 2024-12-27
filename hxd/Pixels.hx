@@ -309,7 +309,6 @@ class Pixels {
 	}
 
 	public function convert( target : PixelFormat ) {
-		trace('Convert from $format to $target');
 		if( format == target || format.equals(target) )
 			return;
 		willChange();
@@ -394,7 +393,6 @@ class Pixels {
 		case [S3TC(a),S3TC(b)] if( a == b ):
 		case [ASTC(a),ASTC(b)] if( a == b ):
 		case [ETC(a),ETC(b)] if( a == b ):
-		case [PVRTC(a),PVRTC(b)] if( a == b ):
 			// nothing
 
 		#if (hl && hl_ver >= "1.10")
@@ -542,6 +540,22 @@ class Pixels {
 		return switch( format ) {
 		case S3TC(_):
 			(((height + 3) >> 2) << 2) * calcStride(width, format);
+		case ASTC(n):
+			var w = ((width + 3) >> 2) << 2;
+			var h = ((height + 3) >> 2) << 2;
+			(w >> 2) * (h >> 2) * 16;
+		case ETC(n):
+			if (n == 0) { // RGB_ETC1_Format or RGB_ETC2_Format
+				var w = ((width + 3) >> 2) << 2;
+				var h = ((height + 3) >> 2) << 2;
+				(w >> 2) * (h >> 2) * 8;
+			} else if (n == 1 || n == 2) { // RGBA_ETC2_EAC_Format
+				var w = ((width + 3) >> 2) << 2;
+				var h = ((height + 3) >> 2) << 2;
+				(w >> 2) * (h >> 2) * 16;
+			} else {
+				throw "Unsupported ETC format";
+			}
 		default:
 			height * calcStride(width, format);
 		}
@@ -563,7 +577,17 @@ class Pixels {
 		case RGB32F: 12;
 		case RGB10A2: 4;
 		case RG11B10UF: 4;
-		case ASTC(n), ETC(n), PVRTC(n), UASTC4x4(n): 1;
+		case ASTC(n): 
+			var blocks = ((width + 3) >> 2) * 16;
+			blocks << 4;
+		case ETC(n):
+			if (n == 0) { // ETC1 and ETC2 RGB
+				((width + 3) >> 2) << 3;
+			} else if (n == 1) {  // ETC2 EAC RGBA
+				((width + 3) >> 2) << 4;
+			} else {
+				throw "Unsupported ETC format";
+			}
 		case S3TC(n):
 			var blocks = (width + 3) >> 2;
 			if( n == 1 || n == 4 )
@@ -609,13 +633,13 @@ class Pixels {
 			channel.toInt() * 4;
 		case RGB10A2, RG11B10UF:
 			throw "Bit packed format";
-		case S3TC(_), ASTC(_), UASTC4x4(_), ETC(_), PVRTC(_), Depth16, Depth24, Depth24Stencil8:
+		case S3TC(_), ASTC(_), ETC(_), Depth16, Depth24, Depth24Stencil8:
 			throw "Not supported";
 		}
 	}
 
 	public static function alloc( width, height, format : PixelFormat ) {
-		return new Pixels(width, height, haxe.io.Bytes.alloc(calcDataSize(width, height, format)), format);
+		return new Pixels(width, height, haxe.io.Bytes.alloc(calcDataSize(width, height, format)), format); 
 	}
 
 	/**

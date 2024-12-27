@@ -241,7 +241,7 @@ class Texture {
 			alloc();
 	}
 
-	public function clearF( r : Float = 0., g : Float = 0., b : Float = 0., a : Float = 0., layer = -1 ) {
+	public function clearF( r : Float = 0., g : Float = 0., b : Float = 0., a : Float = 0., layer = -1 ) {		
 		alloc();
 		if( !flags.has(Target) ) throw "Texture should be target";
 		var engine = h3d.Engine.getCurrent();

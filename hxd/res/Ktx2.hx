@@ -2,16 +2,23 @@ package hxd.res;
 #if js
 import haxe.io.UInt8Array;
 using Lambda;
+/**
+	Ktx2 file parser.
+**/
 class Ktx2 {
-
 	static inline final BYTE_INDEX_ERROR = 'ktx2 files with a file size exceeding 32 bit address space is not supported';
+
+	/**
+		Read ktx2 file
+
+		@param bytes BytesInput containing ktx2 file data
+
+		@return Parsed ktx2 file
+	**/
 	public static function readFile(bytes:haxe.io.BytesInput):Ktx2File {
-		trace('bytes: ${bytes.length}');
 		final header = readHeader(bytes);
 		final levels = readLevels(bytes, header.levelCount);
-		trace('levels: ${levels}');
 		final dfd = readDfd(bytes);
-		trace('dfd: ${dfd}');
 		final file:Ktx2File = {
 			header: header,
 			levels: levels,
@@ -30,7 +37,6 @@ class Ktx2 {
 		
 		final matching = ktx2Id.mapi(( i, id) -> id == bytes.readByte());
 		
-		trace('matching: ${matching}');
 		if(matching.contains(false)) {
 			throw 'Invalid KTX2 header';
 		}
@@ -64,7 +70,6 @@ class Ktx2 {
 				val.low;
 			}
 		}
-		trace('header: ${header}');
 
 		if (header.pixelDepth > 0) {
 			throw 'Failed to parse KTX2 file - Only 2D textures are currently supported.';
@@ -81,7 +86,6 @@ class Ktx2 {
 	static function readLevels(bytes:haxe.io.BytesInput, levelCount:Int):Array<KTX2Level> {
 		levelCount = hxd.Math.imax(1, levelCount);
 		final length = levelCount * 3 * (2 * 4);
-		trace('levels length: ${length}');
 		final level = bytes.read(length);
 		final levels:Array<KTX2Level> = [];
 		
@@ -115,7 +119,6 @@ class Ktx2 {
 
 	static function readDfd(bytes:haxe.io.BytesInput):KTX2DFD {
 		final totalSize = bytes.readInt32();
-		trace('totalSize: ${totalSize}');
 		final vendorId = bytes.readInt16();
 		final descriptorType = bytes.readInt16();
 		final versionNumber = bytes.readInt16();
@@ -161,18 +164,6 @@ class Ktx2 {
 					];
 					final sampleLower = bytes.readUInt16() + bytes.readUInt16();
 					final sampleUpper = bytes.readUInt16() + bytes.readUInt16();
-					/*
-					final sampleLower:UInt = if (lowerBytes & 0x10000000 != 0) {
-						lowerBytes - 0x10000000;
-					} else {
-						lowerBytes;
-					}
-					final sampleUpper:UInt  = if (upperBytes & 0x10000000 != 0) {
-						upperBytes - 0x10000000;
-					} else {
-						upperBytes;
-					}
-						*/
 					final sample:KTX2Sample = {
 						bitOffset: bitOffset,
 						bitLength: bitLength,
@@ -194,73 +185,24 @@ class Ktx2Decoder {
 	public static var mscTranscoder:Dynamic;
 	public static var workerLimit = 4;
 
-
-
-
-
 	static var _workerNextTaskID = 1;
 	static var _workerSourceURL:String;
-	static var _workerConfig = {
-		format: 0,
-		astcSupported: false,
-		etc1Supported: false,
-		etc2Supported: false,
-		dxtSupported: false,
-		pvrtcSupported: false,
-	};
+	static var _workerConfig:BasisWorkerConfig;
 	static var _workerPool:Array<WorkerTask> = [];
 	static var _transcoderPending:js.lib.Promise<Dynamic>;
 	static var _transcoderBinary:haxe.io.Bytes;
-	static var _mscBasisModule:Dynamic;
-	
-
-
 
 	public static function getTexture(bytes:haxe.io.BytesInput, cb:(texture:h3d.mat.Texture) -> Void) {
-		trace('################## get texture');
-		_workerConfig = detectSupport();
 		createTexture(bytes, cb);
 	}
 
-	static function detectSupport() {
+	static function detectSupport(fmt:KtxTranscodeTarget) {
 		final driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
-		final transcoderFormat = driver.textureSupport;
-		driver.gl.getExtension('WEBGL_compressed_texture_s3tc');
-		trace('transcoderFormat::: ${transcoderFormat}');
-		return switch transcoderFormat {
-			case ETC(v): {
-				format: TranscoderFormat.ETC1,
-				astcSupported: false,
-				etc1Supported: v==0,
-				etc2Supported: v==1,
-				dxtSupported: false,
-				pvrtcSupported: false,
-			}
-			case ASTC(_): {
-				format:TranscoderFormat.ASTC_4x4,
-				astcSupported: true,
-				etc1Supported: false,
-				etc2Supported: false,
-				dxtSupported: false,
-				pvrtcSupported: false,
-			}
-			case S3TC(_): {
-				format:TranscoderFormat.BC3,
-				astcSupported: false,
-				etc1Supported: false,
-				etc2Supported: false,
-				dxtSupported: true,
-				pvrtcSupported: false,
-			}
-			case PVRTC(_): {
-				format:TranscoderFormat.PVRTC1_4_RGBA,
-				astcSupported: false,
-				etc1Supported: false,
-				etc2Supported: false,
-				dxtSupported: false,
-				pvrtcSupported: true,
-			}
-			default: throw 'No suitable compressed texture format found.';
+		return 		{
+			astcSupported: driver.textureSupport.astc,
+			etc1Supported: driver.textureSupport.etc1,
+			etc2Supported: driver.textureSupport.etc2,
+			dxtSupported: driver.textureSupport.dxt,
 		}
 	}
 
@@ -274,16 +216,14 @@ class Ktx2Decoder {
 					taskCosts: new haxe.ds.IntMap(),
 					taskLoad: 0,
 				}
-				trace('init !!!!!!!!!!!!');
 				worker.postMessage({
 					type: 'init',
 					config: _workerConfig,
 					transcoderBinary: _transcoderBinary,
 				});
 	
-				worker.onmessage = function(e) {
+				worker.onmessage = e -> {
 					var message = e.data;
-					trace('message: ${message.type}');
 					switch (message.type) {
 						case 'transcode':
 							workerTask.callbacks.get(message.id).resolve(message);
@@ -305,38 +245,29 @@ class Ktx2Decoder {
 	static function createTexture(buffer:haxe.io.BytesInput, cb:(texture:h3d.mat.Texture) -> Void) {
 		final ktx = Ktx2.readFile(buffer);
 
-		// Basis UASTC HDR is a subset of ASTC, which can be transcoded efficiently
-		// to BC6H. To detect whether a KTX2 file uses Basis UASTC HDR, or default
-		// ASTC, inspect the DFD color model.
-		//
-		// Source: https://github.com/BinomialLLC/basis_universal/issues/381
-		//final VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT = 1000066000;
-		//final isBasisHDR = ktx.header.vkFormat === VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT && kxt.dfd[0].colorModel === 0xA7;
-
-
-		// If the device supports ASTC, Basis UASTC HDR requires no transcoder.
-		//final needsTranscoder = container.vkFormat === 0 || isBasisHDR && ! this.workerConfig.astcHDRSupported;
-
 		final w = ktx.header.pixelWidth;
 		final h = ktx.header.pixelHeight;
-		trace('ktx.dfd.colorModel: ${ktx.dfd.colorModel}');
-		/*
-		final texFormat = switch ktx.dfd.colorModel {
-			case hxd.res.Ktx2.DFDModel.ETC1S: KtxTranscodeTarget.ETC1S({}, {
-				fmt: CompressedFormat.ETC1,
-				alpha: ktx.dfd.hasAlpha(),
-				needsPowerOfTwo: true,
-			});
-			case hxd.res.Ktx2.DFDModel.UASTC: KtxTranscodeTarget.UASTC({}, {
-				fmt: CompressedFormat.ASTC,
-				alpha: ktx.dfd.hasAlpha(),
-				needsPowerOfTwo: true
-			});
+		
+		final transcodeTarget = switch ktx.dfd.colorModel {
+			case hxd.res.Ktx2.DFDModel.ETC1S: 
+				KtxTranscodeTarget.ETC1S({}, {
+					fmt: CompressedFormat.ETC1,
+					alpha: ktx.dfd.hasAlpha(),
+					needsPowerOfTwo: true,
+				});
+			case hxd.res.Ktx2.DFDModel.UASTC:
+				KtxTranscodeTarget.UASTC({}, {
+					fmt: CompressedFormat.ASTC,
+					alpha: ktx.dfd.hasAlpha(),
+					needsPowerOfTwo: true,
+				});
 			default: throw 'Unsupported colorModel in ktx2 file ${ktx.dfd.colorModel}';
 		}
-trace('texFormat: ${texFormat}');
-*/
+		trace('detectSupport');
+
+		_workerConfig = detectSupport(transcodeTarget);
 		getWorker().then(task -> {
+			trace('got worker');
 			final worker = task.worker;
 			final taskID = _workerNextTaskID++;
 	
@@ -349,7 +280,6 @@ trace('texFormat: ${texFormat}');
 				task.taskLoad += task.taskCosts.get(taskID);
 				buffer.position = 0;
 				final bytes = buffer.readAll().getData();
-				trace('transcode ${buffer.length} !!!!!!!!!!!!!!');
 				worker.postMessage({type: 'transcode', id: taskID, buffer: bytes}, [bytes]);
 			});
 	
@@ -358,13 +288,10 @@ trace('texFormat: ${texFormat}');
 					throw 'Unable to decode ktx2 file: ${message.error}';
 				}
 
-				trace('message: ${message}');
 				final w = message.data.width;
 				final h = message.data.height;
 
-				//final format:TranscoderType = message.format;
-				//trace('format: ${message.format}');
-				final create = fmt -> {
+				final create = (fmt:hxd.PixelFormat) -> {
 					if(ktx.header.faceCount > 1 || ktx.header.layerCount > 1) {
 						// TODO: Handle cube texture
 						throw 'Multi texture ktx2 files not supported';
@@ -385,33 +312,15 @@ trace('texFormat: ${texFormat}');
 					}
 					texture;
 				}
-				trace('message.data.format: ${message.data.format}');
-				/*
-				class EngineFormat {
-	public static final RGBAFormat = TexFormats.RGBAFormat;
-	public static final RGBA_ASTC_4x4_Format = TexFormats.RGBA_ASTC_4x4_Format ;
-	public static final RGB_BPTC_UNSIGNED_Format = TexFormats.RGB_BPTC_UNSIGNED_Format;
-	public static final RGBA_BPTC_Format = TexFormats.RGBA_BPTC_Format;
-	public static final RGBA_ETC2_EAC_Format = TexFormats.RGBA_ETC2_EAC_Format;
-	public static final RGBA_PVRTC_4BPPV1_Format = TexFormats.RGBA_PVRTC_4BPPV1_Format;
-	public static final RGBA_S3TC_DXT5_Format = TexFormats.RGBA_S3TC_DXT5_Format;
-	public static final RGB_ETC1_Format = TexFormats.RGB_ETC1_Format;
-	public static final RGB_ETC2_Format = TexFormats.RGB_ETC2_Format;
-	public static final RGB_PVRTC_4BPPV1_Format = TexFormats.RGB_PVRTC_4BPPV1_Format;
-	public static final RGBA_S3TC_DXT1_Format = TexFormats.RGBA_S3TC_DXT1_Format;
-}
-	*/
 				final texture = switch message.data.format {
 					case EngineFormat.RGBA_ASTC_4x4_Format:
 						create(hxd.PixelFormat.ASTC(10));
 					case EngineFormat.RGB_BPTC_UNSIGNED_Format, EngineFormat.RGBA_BPTC_Format, EngineFormat.RGBA_S3TC_DXT5_Format:
-						create(hxd.PixelFormat.S3TC(1));
+						create(hxd.PixelFormat.S3TC(3));
 					case EngineFormat.RGB_ETC1_Format:
 						create(hxd.PixelFormat.ETC(0));
-					case EngineFormat.RGB_ETC2_Format:
+					case EngineFormat.RGBA_ETC2_EAC_Format:
 						create(hxd.PixelFormat.ETC(1));
-					case EngineFormat.RGB_PVRTC_4BPPV1_Format, EngineFormat.RGBA_PVRTC_4BPPV1_Format:
-						create(hxd.PixelFormat.PVRTC(9));
 					default:
 						throw 'Ktx2Loader: No supported format available.';
 				}
@@ -430,15 +339,14 @@ trace('texFormat: ${texFormat}');
 	static function initTranscoder() {
 		if (_transcoderBinary == null) {
 			// Load transcoder wrapper.
-			final jsLoader = new hxd.net.BinaryLoader('basis_transcoder.js');
+			final jsLoader = new hxd.net.BinaryLoader('vendor/basis_transcoder.js');
 			final jsContent = new js.lib.Promise((resolve, reject) -> {
 				jsLoader.onLoaded = resolve;
 				jsLoader.onError = reject;
 				jsLoader.load();
 			});
-			//	_transcoderBinary = haxe.Resource.getBytes('basis_transcoder_binary');
 			// Load transcoder WASM binary.
-			final binaryLoader = new hxd.net.BinaryLoader('basis_transcoder.wasm');
+			final binaryLoader = new hxd.net.BinaryLoader('vendor/basis_transcoder.wasm');
 			final binaryContent = new js.lib.Promise((resolve, reject) -> {
 				binaryLoader.onLoaded = resolve;
 				binaryLoader.onError = reject;
@@ -449,7 +357,6 @@ trace('texFormat: ${texFormat}');
 			_transcoderPending = js.lib.Promise.all([jsContent, binaryContent]).then(arr -> {
 				final transcoder = arr[0].toString();
 				final wasm = arr[1];
-				final fn = basisWorker();
 				final transcoderFormat = Type.getClassFields(TranscoderFormat).map(f -> '"$f": ${Reflect.field(TranscoderFormat, f)},\n').fold((curr, acc) -> '$acc\t$curr', '{\n') + '}';
 				final basisFormat = Type.allEnums(BasisFormat).fold((curr, acc) -> '$acc\t"${curr.getName()}": ${curr.getIndex()},\n', '{\n') + '}';
 				final engineFormat = Type.getClassFields(EngineFormat).map(f -> '"$f": ${Reflect.field(EngineFormat, f)},\n').fold((curr, acc) -> '$acc\t$curr', '{\n') + '}';
@@ -463,7 +370,7 @@ trace('texFormat: ${texFormat}');
 					'/* basis_transcoder.js */',
 					transcoder,
 					'/* worker */',
-					fn.substring(fn.indexOf('{') + 1, fn.lastIndexOf('}'))
+					basisWorker()
 				].join('\n');
 
 				_workerSourceURL = js.html.URL.createObjectURL(new js.html.Blob([body]));
@@ -478,7 +385,7 @@ trace('texFormat: ${texFormat}');
 		Get transcoder config according to priority (https://github.com/KhronosGroup/3D-Formats-Guidelines/blob/main/KTXDeveloperGuide.md)
 	**/
 	/*
-	static function getTranscoderConfig(target:KtxTranscodeTarget):KtxTranscodeConfig {
+	static public function getTranscoderConfig(target:KtxTranscodeTarget):KtxTranscodeConfig {
 		return switch target {
 			case ETC1S(options, caps): {
 				switch options {
@@ -493,42 +400,32 @@ trace('texFormat: ${texFormat}');
 							case {fmt: ETC2, alpha: true}: 
 								{
 									transcodeFormat: TranscodeTarget.ETC2_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA8_ETC2_EAC,
+									engineFormat: EngineFormat.RGBA_ETC2_EAC_Format,
 								}
 							case {fmt: ETC2, alpha: false}: 
 								{
 									transcodeFormat: TranscodeTarget.ETC1_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB8_ETC2,
+									engineFormat: EngineFormat.RGB_ETC1_Format,
 								}
 							case {fmt: ETC1, alpha: false}: 
 								{
 									transcodeFormat: TranscodeTarget.ETC1_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_ETC1_WEBGL,
+									engineFormat: EngineFormat.RGB_ETC1_Format,
 								}
 							case {fmt: BPTC}: 
 								{
 									transcodeFormat: TranscodeTarget.BC7_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_BPTC_UNORM_EXT,
+									engineFormat: EngineFormat.RGBA_BPTC_Format,
 								}
 							case {fmt: S3TC, alpha: true}: 
 								{
 									transcodeFormat: TranscodeTarget.BC3_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_S3TC_DXT5_EXT,
+									engineFormat: EngineFormat.RGBA_S3TC_DXT5_Format,
 								}
 							case {fmt: S3TC, alpha: false}: 
 								{
 									transcodeFormat: TranscodeTarget.BC1_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_S3TC_DXT1_EXT,
-								}
-							case {fmt: PVRTC, alpha: true}: 
-								{
-									transcodeFormat: TranscodeTarget.PVRTC1_4_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_PVRTC_4BPPV1_IMG,
-								}
-							case {fmt: PVRTC, alpha: false}: 
-								{
-									transcodeFormat: TranscodeTarget.PVRTC1_4_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_PVRTC_4BPPV1_IMG,
+									engineFormat: EngineFormat.RGBA_S3TC_DXT1_Format,
 								}
 							case _: 
 								{
@@ -544,7 +441,7 @@ trace('texFormat: ${texFormat}');
 					case {forceRGBA: true}:
 						{
 							transcodeFormat: TranscodeTarget.RGBA32,
-							engineFormat: EngineFormat.RGBA8Format,
+							engineFormat: EngineFormat.RGBAFormat,
 							roundToMultiple4: false,
 						}
 					case {forceR8: true}:
@@ -564,12 +461,12 @@ trace('texFormat: ${texFormat}');
 							case {fmt:ASTC}:
 								{
 									transcodeFormat: TranscodeTarget.ASTC_4X4_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_ASTC_4X4_KHR,
+									engineFormat: EngineFormat.RGBA_ASTC_4x4_Format,
 								}
 							case {fmt:BPTC}:
 								{
 									transcodeFormat: TranscodeTarget.BC7_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_BPTC_UNORM_EXT,
+									engineFormat: EngineFormat.RGBA_BPTC_Format,
 								}
 							case _:
 								{
@@ -584,52 +481,37 @@ trace('texFormat: ${texFormat}');
 							case {fmt:ASTC}:
 								{
 									transcodeFormat: TranscodeTarget.ASTC_4X4_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_ASTC_4X4_KHR,
+									engineFormat: EngineFormat.RGBA_ASTC_4x4_Format,
 								}
 							case {fmt:BPTC}:
 								{
 									transcodeFormat: TranscodeTarget.BC7_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_BPTC_UNORM_EXT,
+									engineFormat: EngineFormat.RGBA_BPTC_Format,
 								}
 							case {fmt:ETC2, alpha: true}:
 								{
 									transcodeFormat: TranscodeTarget.ETC2_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA8_ETC2_EAC,
+									engineFormat: EngineFormat.RGBA_ETC2_EAC_Format,
 								}
 							case {fmt:ETC2, alpha: false}:
 								{
 									transcodeFormat: TranscodeTarget.ETC1_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB8_ETC2,
+									engineFormat: EngineFormat.RGB_ETC2_Format,
 								}
 							case {fmt:ETC1}:
 								{
 									transcodeFormat: TranscodeTarget.ETC1_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_ETC1_WEBGL,
+									engineFormat: EngineFormat.RGB_ETC1_Format,
 								}
 							case {fmt:S3TC, alpha: true}:
 								{
 									transcodeFormat: TranscodeTarget.BC3_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_S3TC_DXT5_EXT,
+									engineFormat: EngineFormat.RGBA_S3TC_DXT5_Format,
 								}
 							case {fmt:S3TC, alpha: false}:
 								{
 									transcodeFormat: TranscodeTarget.BC1_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_S3TC_DXT1_EXT,
-								}
-							case {fmt:PVRTC, needsPowerOfTwo: true, alpha: true}:
-								{
-									transcodeFormat: TranscodeTarget.PVRTC1_4_RGBA,
-									engineFormat: EngineFormat.COMPRESSED_RGBA_PVRTC_4BPPV1_IMG,
-								}
-							case {fmt:PVRTC, needsPowerOfTwo: true, alpha: false}:
-								{
-									transcodeFormat: TranscodeTarget.PVRTC1_4_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_PVRTC_4BPPV1_IMG,
-								}
-							case {fmt:PVRTC, needsPowerOfTwo: false}:
-								{
-									transcodeFormat: TranscodeTarget.PVRTC1_4_RGB,
-									engineFormat: EngineFormat.COMPRESSED_RGB_PVRTC_4BPPV1_IMG,
+									engineFormat: EngineFormat.RGBA_S3TC_DXT1_Format,
 								}
 							case _: 
 								{
@@ -643,53 +525,8 @@ trace('texFormat: ${texFormat}');
 			}
 		}
 	}
-	*/
+*/
 }
-
-@:structInit class DecodedData {
-	/**
-	 * Width of the texture
-	 */
-	public var width: Int;
-
-	/**
-	 * Height of the texture
-	 */
-	public var height: Int;
-
-	/**
-	 * The format to use when creating the texture at the engine level
-	 * This corresponds to the engineFormat property of the leaf node of the decision tree
-	 */
-	public final transcodedFormat: Int;
-
-	/**
-	 * List of mipmap levels.
-	 * The first element is the base level, the last element is the smallest mipmap level (if more than one mipmap level is present)
-	 */
-	public final mipmaps: Array<MipmapLevel>;
-
-	/**
-	 * Whether the texture data is in gamma space or not
-	 */
-	public final isInGammaSpace: Bool;
-
-	/**
-	 * Whether the texture has an alpha channel or not
-	 */
-	public final hasAlpha: Bool;
-
-	/**
-	 * The name of the transcoder used to transcode the texture
-	 */
-	//public final transcoderName: String;
-
-	/**
-	 * The errors (if any) encountered during the decoding process
-	 */
-	public final errors: String = null;
-}
-
 
 typedef Ktx2File = {
 	header:KTX2Header,
@@ -812,13 +649,9 @@ typedef KTX2Sample = {
 	}
 
 	public function isInGammaSpace() {
-return 	transferFunction == DFDTransferFunction.SRGB;
+		return transferFunction == DFDTransferFunction.SRGB;
 	}
 }
-
-
-
-
 
 /** @internal */
 typedef KTX2ImageDesc = {
@@ -854,8 +687,7 @@ class TranscoderFormat {
 	public static final BC5 = 5;
 	public static final BC7_M6_OPAQUE_ONLY = 6;
 	public static final BC7_M5 = 7;
-	public static final PVRTC1_4_RGB = 8;
-	public static final PVRTC1_4_RGBA = 9;
+
 	public static final ASTC_4x4 = 10;
 	public static final ATC_RGB = 11;
 	public static final ATC_RGBA_INTERPOLATED_ALPHA = 12;
@@ -877,8 +709,8 @@ enum TranscoderType {
 	cTFBC5; // Not used
 	cTFBC7_M6_OPAQUE_ONLY; // Not used
 	cTFBC7_M5; // Not used
-	cTFPVRTC1_4_RGB;
-	cTFPVRTC1_4_RGBA;
+	cTFPVRTC1_4_RGB; // Not used
+	cTFPVRTC1_4_RGBA; // Not used
 	cTFASTC_4x4;
 	cTFATC_RGB1; // Not used
 	cTFATC_RGBA_INTERPOLATED_ALPHA2; // Not used
@@ -897,31 +729,19 @@ enum BasisFormat {
 
 @:keep
 class EngineFormat {
-	public static final RGBAFormat = TexFormats.RGBAFormat;
-	public static final RGBA_ASTC_4x4_Format = TexFormats.RGBA_ASTC_4x4_Format ;
-	public static final RGB_BPTC_UNSIGNED_Format = TexFormats.RGB_BPTC_UNSIGNED_Format;
-	public static final RGBA_BPTC_Format = TexFormats.RGBA_BPTC_Format;
-	public static final RGBA_ETC2_EAC_Format = TexFormats.RGBA_ETC2_EAC_Format;
-	public static final RGBA_PVRTC_4BPPV1_Format = TexFormats.RGBA_PVRTC_4BPPV1_Format;
-	public static final RGBA_S3TC_DXT5_Format = TexFormats.RGBA_S3TC_DXT5_Format;
-	public static final RGB_ETC1_Format = TexFormats.RGB_ETC1_Format;
-	public static final RGB_ETC2_Format = TexFormats.RGB_ETC2_Format;
-	public static final RGB_PVRTC_4BPPV1_Format = TexFormats.RGB_PVRTC_4BPPV1_Format;
-	public static final RGBA_S3TC_DXT1_Format = TexFormats.RGBA_S3TC_DXT1_Format;
-}
-@:keep
-class TexFormats {
 	public static final RGBAFormat = 0x03FF;
-	public static final RGBA_ASTC_4x4_Format  = 0x93b0;
-	public static final RGB_BPTC_UNSIGNED_Format  = 0x8e8f;
-	public static final RGBA_BPTC_Format  = 0x8e8c;
-	public static final RGBA_ETC2_EAC_Format  = 0x9278;
-	public static final RGBA_PVRTC_4BPPV1_Format  = 0x8C00; 
-	public static final RGBA_S3TC_DXT5_Format  = 0x83f3; 
-	public static final RGB_ETC1_Format  = 0x8d64; 
-	public static final RGB_ETC2_Format  = 0x9274; 
-	public static final RGB_PVRTC_4BPPV1_Format  = 0x8C02; 
-	public static final RGBA_S3TC_DXT1_Format  = 0x83F1; 
+	public static final RGBA8Format = 0x8058;
+    public static final R8Format = 0x8229;
+    public static final RG8Format = 0x822b;
+	public static final RGBA_ASTC_4x4_Format = PixelFormat.ASTC_FORMAT.RGBA_4x4;
+	public static final RGB_BPTC_UNSIGNED_Format = 0x8e8f;
+	public static final RGBA_BPTC_Format =0x8e8c;
+	public static final RGB_S3TC_DXT1_Format = PixelFormat.DXT_FORMAT.RGB_DXT1;
+	public static final RGBA_S3TC_DXT1_Format = PixelFormat.DXT_FORMAT.RGBA_DXT1;
+	public static final RGBA_S3TC_DXT5_Format = PixelFormat.DXT_FORMAT.RGBA_DXT5;
+	public static final RGB_ETC1_Format =  PixelFormat.ETC_FORMAT.RGB_ETC1;
+	public static final RGBA_ETC2_EAC_Format = PixelFormat.ETC_FORMAT.RGBA_ETC2;
+	public static final RGB_ETC2_Format = 0x9274;
 }
 
 @:keep
@@ -955,15 +775,15 @@ enum KtxTranscodeTarget {
 	ETC1S(options:ETC1SDecoderOptions, caps:Ktx2Caps);
 	UASTC(options:UASTCDecoderOptions, caps:Ktx2Caps);
 }
-/*
+
 @:structInit class KtxTranscodeConfig {
 	public final transcodeFormat:TranscodeTarget;
-	public final engineFormat:EngineFormat;
+	public final engineFormat:Int;
 //	public final basisFormat:EngineType;
 	public final engineType = EngineType.UnsignedByteType;
 	public final roundToMultiple4 = true;
 }
-*/
+
 
 @:structInit class Ktx2Caps {
 	public final fmt: CompressedFormat;
@@ -977,7 +797,6 @@ enum CompressedFormat {
 	ETC1;
 	S3TC;
 	ASTC;
-	PVRTC;
 	BPTC;
 }
 
@@ -1007,18 +826,11 @@ enum TranscodeTarget {
 	BC7_RGBA;
 	BC3_RGBA;
 	BC1_RGB;
-	PVRTC1_4_RGBA;
-	PVRTC1_4_RGB;
 	ETC2_RGBA;
 	ETC1_RGB;
 	RGBA32;
 	R8;
 	RG8;
-}
-
-enum SourceTextureFormat {
-	ETC1S;
-	UASTC4x4;
 }
 
 typedef WorkerTask = {
@@ -1027,41 +839,16 @@ typedef WorkerTask = {
 	taskCosts:haxe.ds.IntMap<Int>,
 	taskLoad:Int,
 }
-/*
-class StructMacro {
-	public static macro function readStruct(typeExpr:haxe.macro.Expr) {
-		final typeName = switch typeExpr.expr {
-			case EConst(CIdent(name)): name;
-			case _: haxe.macro.Context.error('Expected a type identifier', typeExpr.pos);
-		};
-	
-		final typeDef = haxe.macro.Context.getType(typeName);
-	
-		final classType = switch typeDef {
-			case TInst(c, _): c;
-			case _: haxe.macro.Context.error('Expected a class type', typeExpr.pos);
-		};
-	
-		final classFields = classType.get();
-		final classStaticFields = classFields.statics.get();
-		final o:Map<String, Int> = [];
-		for (field in classStaticFields) {
-			final valueMeta = field.meta.get().filter(f -> f.name == ':value')[0];
-			final valueExpr = valueMeta.params[0].expr;
-			final fieldValue:Any = switch valueExpr {
-				case EConst(CInt(v, _)): v;
-				case _: null;
-			}
-			final fieldName = field.name;
-			o.set(fieldName, fieldValue);
-		}
-	
-		return macro $v{o};
-	}
+
+typedef BasisWorkerConfig = {
+	astcSupported: Bool,
+	etc1Supported: Bool,
+	etc2Supported: Bool,
+	dxtSupported: Bool,
 }
-*/
+
 function basisWorker() {
-	return "function () {
+	return "
 	let config;
 	let transcoderPending;
 	let BasisModule;
@@ -1075,7 +862,6 @@ function basisWorker() {
 		const message = e.data;
 		switch ( message.type ) {
 			case 'init':
-				console.log(` message.config:${ JSON.stringify(message.config)}`);
 				config = message.config;
 				init( message.transcoderBinary );
 				break;
@@ -1099,7 +885,6 @@ function basisWorker() {
 			BASIS( BasisModule ); // eslint-disable-line no-undef
 		} ).then( () => {
 			BasisModule.initializeBasis();
-			console.log(`BasisModule.KTX2File:${BasisModule.KTX2File}`);
 			if ( BasisModule.KTX2File === undefined ) {
 				console.warn( 'KTX2Loader: Please update Basis Universal transcoder.' );
 			}
@@ -1117,20 +902,16 @@ function basisWorker() {
 			cleanup();
 			throw new Error( 'KTX2Loader:	Invalid or unsupported .ktx2 file' );
 		}
-console.log(` ktx2File.isETC1S() : ${ ktx2File.isETC1S() }`)
-		console.log(`ktx2File.isUASTC():${ktx2File.isUASTC()}`);
 		let basisFormat;
 		if ( ktx2File.isUASTC() ) {
 			basisFormat = BasisFormat.UASTC;
 		} else if ( ktx2File.isETC1S() ) {
 			basisFormat = BasisFormat.ETC1S;
 		} else if ( ktx2File.isHDR() ) {
-					basisFormat = BasisFormat.UASTC_HDR;
+			basisFormat = BasisFormat.UASTC_HDR;
 		} else {
 			throw new Error( 'KTX2Loader: Unknown Basis encoding' );
 		}
-						
-		console.log(`basisFormat:${basisFormat}`);
 		const width = ktx2File.getWidth();
 		const height = ktx2File.getHeight();
 		const layerCount = ktx2File.getLayers() || 1;
@@ -1300,28 +1081,12 @@ console.log(` ktx2File.isETC1S() : ${ ktx2File.isETC1S() }`)
 
 	function getTranscoderFormat( basisFormat, width, height, hasAlpha ) {
 		const options = OPTIONS[ basisFormat ];
-		console.log(`options:${JSON.stringify(options)}`);
-		console.log(` isPowerOfTwo( width ): ${isPowerOfTwo( width )}`)
-		const opts = FORMAT_OPTIONS.filter( ( opt ) => {
-			console.log(`********* ${JSON.stringify(opt.basisFormat)} ${BasisFormat.ETC1S}`)
-
-			const val = opt.basisFormat;
-			console.log(`val: ${val}`);
-			return val.includes( BasisFormat.ETC1S );
- 		} );
-		console.log(`********* ${JSON.stringify(opts)}`)
 		for ( let i = 0; i < options.length; i++ ) {
 			const opt = options[ i ];
-			console.log(`hasAlpha: ${hasAlpha} opt.transcoderFormat.length:${opt.transcoderFormat.length}`)
-			console.log(`opt.basisFormat.includes( basisFormat ): ${opt.basisFormat.includes( basisFormat )}`)
-			console.log(`config:${JSON.stringify(config)}`);
-			console.log(`Opt: ${JSON.stringify(opt)}`);
 			if ( opt.if && ! config[ opt.if ] ) continue;
 			if ( ! opt.basisFormat.includes( basisFormat ) ) continue;
 			if ( hasAlpha && opt.transcoderFormat.length < 2 ) continue;
 			if ( opt.needsPowerOfTwo && ! ( isPowerOfTwo( width ) && isPowerOfTwo( height ) ) ) continue;
-			console.log(`hasAlpha:${hasAlpha}`);
-			console.log(`opt.engineFormat:${opt.engineFormat}`);
 			const transcoderFormat = opt.transcoderFormat[ hasAlpha ? 1 : 0 ];
 			const engineFormat = opt.engineFormat[ hasAlpha ? 1 : 0 ];
 			const engineType = opt.engineType[ 0 ];
@@ -1357,8 +1122,7 @@ console.log(` ktx2File.isETC1S() : ${ ktx2File.isETC1S() }`)
 		}
 
 		return result;
-	}
-}";
+	}";
 }
 
 @:structInit class BasisWorkerMessage {
@@ -1375,80 +1139,4 @@ console.log(` ktx2File.isETC1S() : ${ ktx2File.isETC1S() }`)
 	};
 	public final error:String = null;
 }
-	
-/*
-
-class WorkerPool {
-	final poolSize:Int;
-	final queue:Array<{ resolve:() -> Void, msg:String, transfer:Dynamic }>;
-	final workers:Array<js.html.Worker> = [];
-	final workersResolve:Array<() -> Void> = [];
-	var workerCreator:() -> js.html.Worker;
-	var workerStatus = 0;
-	public function new( poolSize = 4 ) {
-		this.poolSize = poolSize;
-	}
-
-	function initWorker( workerId:Int ) {
-		if (workers[ workerId ] == null) {
-			final worker = this.workerCreator();
-			worker.addEventListener( 'message', onMessage.bind( workerId ) );
-			this.workers[ workerId ] = worker;
-		}
-	}
-
-	function getIdleWorker():Int {
-		for(i in 0...poolSize) {
-			final status = this.workerStatus & ( 1 << i );
-			trace('status: ${status}');
-			if(workerStatus & ( 1 << i ) == 0) {
-				return i;
-			}
-		}
-		return - 1;
-	}
-
-	function onMessage( workerId:Int, msg:String ) {
-		final resolve = workersResolve[ workerId ];
-		resolve && resolve( msg );
-		if ( queue.length > 0) {
-			final o = queue.shift();
-			workersResolve[ workerId ] = o.resolve;
-			workers[ workerId ].postMessage( o.msg, o.transfer );
-		} else {
-			workerStatus ^= 1 << workerId;
-		}
-	}
-
-	function setWorkerCreator( creator:() -> js.html.Worker ) {
-		workerCreator = creator;
-	}
-
-	function setWorkerLimit( size:Int ) {
-		poolSize = size;
-	}
-
-	function postMessage( msg, transfer ) {
-		return new Promise( ( resolve ) => {
-			final workerId = getIdleWorker();
-			if ( workerId != - 1 ) {
-				initWorker( workerId );
-				workerStatus |= 1 << workerId;
-				workersResolve[ workerId ] = resolve;
-				workers[ workerId ].postMessage( msg, transfer );
-			} else {
-				queue.push( { resolve, msg, transfer } );
-			}
-		});
-	}
-
-	function dispose() {
-		workers.forEach(worker -> worker.terminate());
-		workersResolve.length = 0;
-		workers.length = 0;
-		queue.length = 0;
-		workerStatus = 0;
-	}
-}
-	*/
 #end

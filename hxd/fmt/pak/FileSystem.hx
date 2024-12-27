@@ -116,35 +116,14 @@ private class PakEntry extends hxd.fs.FileEntry {
 	override function loadBitmap( onLoaded : (bmp:hxd.fs.LoadedBitmap, ?texture:h3d.mat.Texture) -> Void ) : Void { 
 		#if js
 		final ext =  file.name.substring(file.name.indexOf('.')+1).toLowerCase();
-		trace('ext: ${ext}');
-	//	var mime = switch ext {
-	//		case 'jpg' | 'jpeg': 'image/jpeg';
-	//		case 'png': 'image/png';
-	//		case 'gif': 'image/gif';
-	//		case 'basis': 'binary/octet-stream';
-	//		case _: throw 'Cannot determine image encoding, try adding an extension to the resource path';
-	//	}
-	
-	trace('getting image texture for ${file.name}');
 		if(ext=='png') {
 			
 			hxd.res.Ktx2.Ktx2Decoder.getTexture(new haxe.io.BytesInput(getBytes()), texture ->  {
-				trace('got image texture for ${file.name} $texture');
-				//final img = ctx.createImageData(texture.width, texture.height);
 				onLoaded(null, texture);
 			});
-			
-			/*
-
-			hxd.res.BasisTextureLoader.getTexture(getBytes().getData()).then(texture ->  {
-				trace('got image texture for ${file.name} $texture');
-				//final img = ctx.createImageData(texture.width, texture.height);
-				onLoaded(null, texture);
-			});
-			*/
 			
 		}
-			
+			// TODO: Test jpg
 		// else {
 		//	var img = new js.html.Image();
 		//	img.onload = () -> onLoaded(new hxd.fs.LoadedBitmap(img));
