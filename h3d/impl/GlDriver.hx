@@ -2,7 +2,6 @@ package h3d.impl;
 
 import h3d.impl.Driver;
 import h3d.mat.Data;
-import h3d.mat.Pass;
 import h3d.mat.Stencil;
 #if (js || hlsdl || usegl)
 #if js
@@ -1226,6 +1225,11 @@ class GlDriver extends Driver {
 		}
 
 		return tt;
+	}
+
+	inline function checkMult4(t:h3d.mat.Texture) {
+		if (t.width & 3 != 0 || t.height & 3 != 0)
+			throw "Compressed texture " + t + " has size " + t.width + "x" + t.height + " - must be a multiple of 4";
 	}
 
 	function restoreBind() {
