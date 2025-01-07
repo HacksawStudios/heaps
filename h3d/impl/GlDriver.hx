@@ -89,8 +89,7 @@ class GlDriver extends Driver {
 	static var UID = 0;
 	public var gl : GL;
 	public static var ALLOW_WEBGL2 = true;
-	public static var MAX_PRECISION = null;
-	public var textureSupport:hxd.PixelFormat;
+	public var textureSupport:{astc:Bool, astcHDR:Bool, etc1:Bool, etc2:Bool, dxt:Bool, bptc:Bool};
 	#end
 
 	#if (hlsdl||usegl)
@@ -434,6 +433,14 @@ class GlDriver extends Driver {
 			}
 			s.buffers = [for( i in 0...shader.bufferCount ) {
 				switch( s.bufferTypes[i] ) {
+				case Storage:
+					#if js
+					throw "Storage buffer not supported in WebGL";
+					#elseif (hl_ver < version("1.15.0"))
+					throw "Storage buffer support requires -D hl-ver=1.15.0";
+					#else
+					gl.getProgramResourceIndex(p.p,GL.SHADER_STORAGE_BLOCK, "storage_uniform_buffer"+i);
+					#end
 				case RW:
 					#if js
 					throw "RW buffer not supported in WebGL";
@@ -454,7 +461,7 @@ class GlDriver extends Driver {
 				switch( s.bufferTypes[i] ) {
 				case Uniform:
 					gl.uniformBlockBinding(p.p,s.buffers[i],i + start);
-				case RW:
+				case RW, Storage:
 					#if (hl_ver >= version("1.15.0"))
 					gl.shaderStorageBlockBinding(p.p,s.buffers[i], i + start);
 					#end
@@ -626,6 +633,8 @@ class GlDriver extends Driver {
 					switch( s.bufferTypes[i] ) {
 					case Uniform:
 						gl.bindBufferBase(GL.UNIFORM_BUFFER, i + start, buf.buffers[i].vbuf);
+					case Storage:
+						gl.bindBufferBase(0x90D2 /*GL.SHADER STORAGE BUFFER*/, i + start, buf.buffers[i].vbuf);
 					case RW:
 						if ( !buf.buffers[i].flags.has(ReadWriteBuffer) )
 							throw "Buffer was allocated without ReadWriteBuffer flag";
@@ -989,11 +998,9 @@ class GlDriver extends Driver {
 		case GL.RGB10_A2: GL.RGBA;
 		case GL.RED, GL.R8, GL.R16F, GL.R32F, 0x822A: GL.RED;
 		case GL.RG, GL.RG8, GL.RG16F, GL.RG32F, 0x822C: GL.RG;
-		case GL.RGB16F, GL.RGB32F, 0x8054, 0x8E8F: GL.RGB;
-		case hxd.PixelFormat.DXT_FORMAT.RGBA_DXT1,hxd.PixelFormat.DXT_FORMAT.RGBA_DXT3,
-		hxd.PixelFormat.DXT_FORMAT.RGBA_DXT5,hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4,
-		hxd.PixelFormat.PVRTC_FORMAT.RGBA_4BPPV1, 0x805B, 0x8E8C : GL.RGBA;
-		case hxd.PixelFormat.PVRTC_FORMAT.RGB_4BPPV1, hxd.PixelFormat.ETC_FORMAT.RGB_ETC1: GL.RGB;
+		case GL.RGB16F, GL.RGB32F, 0x8054, hxd.CompressedTextureFormat.BPTC_FORMAT.RGB_BPTC_UNSIGNED, hxd.CompressedTextureFormat.ETC_FORMAT.RGB_ETC1: GL.RGB;
+		case 0x805B, hxd.CompressedTextureFormat.DXT_FORMAT.RGBA_DXT1,hxd.CompressedTextureFormat.DXT_FORMAT.RGBA_DXT3,
+		hxd.CompressedTextureFormat.DXT_FORMAT.RGBA_DXT5,hxd.CompressedTextureFormat.ASTC_FORMAT.RGBA_4x4, hxd.CompressedTextureFormat.BPTC_FORMAT.RGBA_BPTC : GL.RGBA;
 		default: throw "Invalid format " + t.internalFmt;
 		}
 	}
@@ -1005,7 +1012,7 @@ class GlDriver extends Driver {
 		case SRGB, SRGB_ALPHA: hasFeature(SRGBTextures);
 		case R8, RG8, RGB8, R16F, RG16F, RGB16F, R32F, RG32F, RGB32F, RG11B10UF, RGB10A2: #if js glES >= 3 #else true #end;
 		case S3TC(n): n <= maxCompressedTexturesSupport;
-		case ASTC(_), ETC(_), PVRTC(_): #if js true #else false #end;
+		case ASTC(_), ETC(_): #if js true #else false #end;
 		default: false;
 		}
 	}
@@ -1096,21 +1103,14 @@ class GlDriver extends Driver {
 		case ASTC(n):
 			checkMult4(t);
 			switch( n ) {
-			case 10: tt.internalFmt = hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4;
+			case 10: tt.internalFmt = hxd.CompressedTextureFormat.ASTC_FORMAT.RGBA_4x4;
 			default: throw "Unsupported texture format "+t.format;
 			}
 		case ETC(n):
 			checkMult4(t);
 			switch( n ) {
-			case 0: tt.internalFmt = hxd.PixelFormat.ETC_FORMAT.RGB_ETC1;
-			default: throw "Unsupported texture format "+t.format;
-			}
-		case PVRTC(n):
-			checkMult4(t);
-			switch(n) {
-			case 8: tt.internalFmt = hxd.PixelFormat.PVRTC_FORMAT.RGB_4BPPV1;
-			case 9: tt.internalFmt = hxd.PixelFormat.PVRTC_FORMAT.RGBA_4BPPV1;
-			default: throw "Unsupported texture format "+t.format;
+			case 0: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGB_ETC1;
+			case 1: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGBA_ETC2;
 			}
 		default:
 			throw "Unsupported texture format "+t.format;
@@ -1436,18 +1436,16 @@ class GlDriver extends Driver {
 		case RGB10A2, RG11B10UF: new Uint32Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen>>2);
 		default: new Uint8Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen);
 		}
-
-		switch (t.format) {
-			case S3TC(_), ASTC(_), PVRTC(_), ETC(_):
-				if( t.flags.has(IsArray) || t.flags.has(Is3D)  )
-					gl.compressedTexSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, t.t.internalFmt, buffer);
-				else
-					gl.compressedTexSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, t.t.internalFmt, buffer);
-			default:
-				if( t.flags.has(IsArray)  || t.flags.has(Is3D) )
-					gl.texSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, getChannels(t.t), t.t.pixelFmt, buffer);
-				else
-					gl.texSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, getChannels(t.t), t.t.pixelFmt, buffer);
+		if( t.format.match(S3TC(_) | ASTC(_) | ETC(_)) ) {
+			if( t.flags.has(IsArray) || t.flags.has(Is3D) )
+				gl.compressedTexSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, t.t.internalFmt, buffer);
+			else
+				gl.compressedTexSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, t.t.internalFmt, buffer);
+		} else {
+			if( t.flags.has(IsArray) || t.flags.has(Is3D) )
+				gl.texSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, getChannels(t.t), t.t.pixelFmt, buffer);
+			else
+				gl.texSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, getChannels(t.t), t.t.pixelFmt, buffer);
 		}
 		#else
 		throw "Not implemented";
@@ -1922,41 +1920,28 @@ class GlDriver extends Driver {
 	}
 
 	#if js
-
-	public function checkTextureSupport():hxd.PixelFormat {
-		var astcSupported = gl.getExtension('WEBGL_compressed_texture_astc') != null;
-		var dxtSupported = gl.getExtension('WEBGL_compressed_texture_s3tc') != null;
-		var pvrtcSupported = gl.getExtension('WEBGL_compressed_texture_pvrtc') != null
-			|| gl.getExtension('WEBKIT_WEBGL_compressed_texture_pvrtc') != null;
-		var etcSupported = gl.getExtension('WEBGL_compressed_texture_etc1') != null;
-		return if(astcSupported) {
-			hxd.PixelFormat.ASTC();
-		} else if(dxtSupported){
-			hxd.PixelFormat.S3TC();
-		} else  if(pvrtcSupported){
-			hxd.PixelFormat.PVRTC();
-		} else if(etcSupported){
-			hxd.PixelFormat.ETC();
-		} else {
-			null;
+	public function checkTextureSupport() {
+		final checkExtension = ext -> {
+			gl.getExtension(ext) != null;
+		}
+		return {
+			astc: checkExtension('WEBGL_compressed_texture_astc'),
+			astcHDR: checkExtension( 'WEBGL_compressed_texture_astc' )
+					&& gl.getExtension( 'WEBGL_compressed_texture_astc' ).getSupportedProfiles().includes( 'hdr' ),
+			etc1: false, // Not supported on WebGL2  (https://registry.khronos.org/OpenGL-Refpages/es3/html/glCompressedTexSubImage2D.xhtml); checkExtension('WEBGL_compressed_texture_etc1'),
+			etc2: checkExtension('WEBGL_compressed_texture_etc'),
+			dxt: checkExtension('WEBGL_compressed_texture_s3tc'),
+			bptc: checkExtension('EXT_texture_compression_bptc'),
 		}
 	}
+
 	var features : Map<Feature,Bool> = new Map();
 	var has16Bits : Bool;
 	function makeFeatures() {
 		for( f in Type.allEnums(Feature) )
 			features.set(f,checkFeature(f));
 		textureSupport = checkTextureSupport();
-		maxCompressedTexturesSupport = switch (textureSupport) {
-			case hxd.PixelFormat.ASTC(_), hxd.PixelFormat.ETC(_), hxd.PixelFormat.PVRTC(_): 3;
-			case hxd.PixelFormat.S3TC(_) : 
-				if( gl.getExtension("EXT_texture_compression_bptc") != null ) {
-					7;
-				} else {
-					3;
-				}
-			default: 0;
-		}
+		maxCompressedTexturesSupport = textureSupport.bptc ? 7 : 3;
 		if( glES < 3 )
 			gl.getExtension("WEBGL_depth_texture");
 		has16Bits = gl.getExtension("EXT_texture_norm16") != null; // 16 bit textures

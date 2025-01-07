@@ -11,6 +11,6 @@ bin
 /node_modules
 /*.xml
 .vscode
-/tools/mikktspace/out
+/tools/meshtools/out
 *.exe
 .history

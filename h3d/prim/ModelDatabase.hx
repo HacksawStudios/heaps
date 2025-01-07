@@ -54,7 +54,7 @@ class ModelDatabase {
 		@:privateAccess hmd.lodConfig = Reflect.field(lodConfigs, name);
 	}
 
-	public function saveModelProps( name : String, hmd : HMDModel, defaultProps : Any = null ) {
+	public function saveModelProps( name : String, hmd : HMDModel) {
 		var root : Dynamic = getModelData(@:privateAccess hmd.lib.resource);
 		if( root == null )
 			return;
@@ -80,8 +80,16 @@ class ModelDatabase {
 			}
 		}
 
-		if (!isDefaultConfig)
-			Reflect.setField(lodConfigObj, name, @:privateAccess hmd.lodConfig);
+		if (!isDefaultConfig) {
+			var c = [];
+			for (idx in 0...hmd.lodCount()) @:privateAccess {
+				if (idx >= hmd.lodConfig.length)
+					c[idx] = 0.;
+				else
+					c[idx] = hmd.lodConfig[idx];
+			}
+			Reflect.setField(lodConfigObj, name, c);
+		}
 		else
 			Reflect.deleteField(lodConfigObj, name);
 

@@ -195,7 +195,6 @@ class Geometry {
 		if( matrix == null ) matrix = getGeomMatrix();
 		if( matrix != null && matrix.isIdentity() ) matrix = null;
 		var normals = processVectors("LayerElementNormal", "Normals");
-		var outNormals = [];
 		var tmp = new h3d.Vector();
 		for( i in 0...Std.int(normals.length/3) ) {
 			var x = normals[i*3];
@@ -209,12 +208,11 @@ class Geometry {
 				y = tmp.y;
 				z = tmp.z;
 			}
-			outNormals.push(x);
-			outNormals.push(y);
-			outNormals.push(z);
+			normals[i*3] = x;
+			normals[i*3+1] = y;
+			normals[i*3+2] = z;
 		}
-
-		return outNormals;
+		return normals;
 	}
 
 	function processVectors( layer, name, opt = false ) {

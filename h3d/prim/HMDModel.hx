@@ -254,6 +254,8 @@ class HMDModel extends MeshPrimitive {
 
 		var materialCount = data.indexCounts.length;
 		var lodLevel = Std.int(curMaterial / data.indexCounts.length);
+		if ( lodLevel >= lodCount() )
+			return;
 
 		if( indexes == null || indexes.isDisposed() )
 			alloc(engine);
@@ -303,11 +305,17 @@ class HMDModel extends MeshPrimitive {
 		if ( lodCount == 1 )
 			return 0;
 
-		lodConfig = getLodConfig();
-		if ( lodConfig != null && lodConfig.length >= lodCount - 1) {
+		var lodConfig = getLodConfig();
+		if ( lodConfig != null ) {
+			var lodConfigHasCulling = lodConfig.length > lodCount - 1;
+			if ( lodConfigHasCulling && screenRatio < lodConfig[lodConfig.length - 1] )
+				return lodCount;
+
 			var lodLevel : Int = 0;
-			var maxIter = ( ( lodConfig.length > lodCount - 1 ) ? lodCount - 1: lodConfig.length );
+			var maxIter = lodConfigHasCulling ? lodCount - 1 : lodConfig.length;
 			for ( i in 0...maxIter ) {
+				if ( lodConfig[i] == 0.0 )
+					return lodLevel;
 				if ( lodConfig[i] > screenRatio )
 					lodLevel++;
 				else
@@ -324,6 +332,7 @@ class HMDModel extends MeshPrimitive {
 			return lodConfig;
 
 		var d = lib.resource.entry.directory;
-		return @:privateAccess ModelDatabase.current.getDefaultLodConfig(d);
+		lodConfig = @:privateAccess ModelDatabase.current.getDefaultLodConfig(d);
+		return lodConfig;
 	}
 }

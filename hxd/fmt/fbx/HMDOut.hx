@@ -10,6 +10,7 @@ class HMDOut extends BaseLibrary {
 	var dataOut : haxe.io.BytesOutput;
 	var filePath : String;
 	var tmp = haxe.io.Bytes.alloc(4);
+	var midsSortRemap : Map<Int, Int>;
 	public var absoluteTexturePath : Bool;
 	public var optimizeSkin = true;
 	public var generateNormals = false;
@@ -43,7 +44,7 @@ class HMDOut extends BaseLibrary {
 			throw "Need UVs to build tangents" + (geom.lib != null ? ' in ${geom.lib.fileName}' : '');
 
 		#if (hl && !hl_disable_mikkt)
-		var m = new hl.Format.Mikktspace();
+		var m = new hxd.tools.Mikktspace();
 		m.buffer = new hl.Bytes(8 * 4 * index.vidx.length);
 		m.stride = 8;
 		m.xPos = 0;
@@ -455,7 +456,7 @@ class HMDOut extends BaseLibrary {
 				if( mats == null )
 					mid = 0;
 				else {
-					mid = mats[matPos];
+					mid = midsSortRemap != null ? midsSortRemap.get(mats[matPos]) : mats[matPos];
 					if( mats.length > 1 ) matPos++;
 				}
 				var idx = ibufs[mid];
@@ -904,6 +905,13 @@ class HMDOut extends BaseLibrary {
 					skin.split(maxBonesPerSkin, [for( i in idx.idx ) idx.vidx[i]], mids.length > 1 ? g.getMaterialByTriangle() : null);
 				}
 				model.skin = makeSkin(skin, o.skin);
+			}
+
+			// Reorder materials to unsure there are in the same order for lods
+			midsSortRemap = new Map<Int, Int>();
+			for (idx in 0...mids.length) {
+				midsSortRemap.set(idx, mids[idx]);
+				mids[idx] = idx;
 			}
 
 			var gdata = hgeom.get(g.getId());

@@ -8,7 +8,7 @@ enum abstract ImageFormat(Int) {
 	var Dds = 4;
 	var Raw = 5;
 	var Hdr = 6;
-	var Basis = 7;
+	var Ktx2 = 7;
 
 	/*
 		Tells if we might not be able to directly decode the image without going through a loadBitmap async call.
@@ -36,7 +36,7 @@ enum abstract ImageFormat(Int) {
 			case Dds: "DDS";
 			case Raw: "RAW";
 			case Hdr: "HDR";
-			case Basis: "BASIS";
+			case Ktx2: "KTX2";
 		};
 	}
 }
@@ -243,14 +243,21 @@ class Image extends Resource {
 						fid = "" + fourCC;
 					throw entry.path + " has unsupported 4CC " + fid;
 				}
+			#if js
 			case 0x4273:
-				inf.dataFormat = Basis;
-				f.skip(63);
-				inf.pixelFormat = BGRA;
-				var slicesPos = f.readInt32();
-				f.skip(slicesPos-42);
-				inf.width = f.readUInt16();
-				inf.height = f.readUInt16();
+				throw 'Use .ktx2 files for GPU compressed textures instead of .basis';
+			case 0x4BAB:
+				final ktx2 = hxd.res.Ktx2.readFile(new haxe.io.BytesInput(@:privateAccess f.cache));
+				inf.pixelFormat = switch ktx2.dfd.colorModel {
+					case hxd.res.Ktx2.DFDModel.ETC1S: ETC(hxd.res.Ktx2.TranscoderFormat.ETC1);
+					case hxd.res.Ktx2.DFDModel.UASTC: ASTC(hxd.res.Ktx2.TranscoderFormat.ASTC_4x4);
+					default: throw 'Unsupported colorModel in ktx2 file ${ktx2.dfd.colorModel}';
+				}
+				inf.mipLevels = ktx2.header.levelCount;
+				inf.width = ktx2.header.pixelWidth;
+				inf.height = ktx2.header.pixelHeight;
+				inf.dataFormat = Ktx2;
+			#end
 			case 0x3F23: // HDR RADIANCE
 
 				inf.dataFormat = Hdr;
@@ -444,21 +451,9 @@ class Image extends Resource {
 			case Hdr:
 				var data = hxd.fmt.hdr.Reader.decode(entry.getBytes(), false);
 				pixels = new hxd.Pixels(data.width, data.height, data.bytes, inf.pixelFormat);
-			case Basis:
-				#if js
+			case Ktx2:
 				var bytes = entry.getBytes();
-				var driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
-				var f = switch(driver.checkTextureSupport()) {
-					case hxd.PixelFormat.S3TC(_): hxd.PixelFormat.S3TC(0);
-					case hxd.PixelFormat.ETC(_): hxd.PixelFormat.ETC(0);
-					case hxd.PixelFormat.ASTC(_): hxd.PixelFormat.ASTC(10);
-					case hxd.PixelFormat.PVRTC(_): hxd.PixelFormat.PVRTC(9);
-					default: throw 'Unsupported basis texture';
-				}
-				pixels = new hxd.Pixels(inf.width, inf.height, bytes, f);
-				#else
-				throw 'Basis only supported on js target';
-				#end
+				pixels = new hxd.Pixels(inf.width, inf.height, bytes, inf.pixelFormat);
 		}
 		if (fmt != null)
 			pixels.convert(fmt);
@@ -468,7 +463,7 @@ class Image extends Resource {
 	#if hl
 	static function decodeJPG(src:haxe.io.Bytes, width:Int, height:Int, requestedFmt:hxd.PixelFormat) {
 		var outFmt = requestedFmt;
-		var ifmt:hl.Format.PixelFormat = switch (requestedFmt) {
+		var ifmt:format.hl.Native.PixelFormat = switch (requestedFmt) {
 			case RGBA: RGBA;
 			case BGRA: BGRA;
 			case ARGB: ARGB;
@@ -477,7 +472,7 @@ class Image extends Resource {
 				BGRA;
 		};
 		var dst = haxe.io.Bytes.alloc(width * height * 4);
-		if (!hl.Format.decodeJPG(src.getData(), src.length, dst.getData(), width, height, width * 4, ifmt, 0))
+		if (!format.hl.Native.decodeJPG(src.getData(), src.length, dst.getData(), width, height, width * 4, ifmt, 0))
 			return null;
 		var pix = new hxd.Pixels(width, height, dst, outFmt);
 		return pix;
@@ -485,7 +480,7 @@ class Image extends Resource {
 
 	static function decodePNG(src:haxe.io.Bytes, width:Int, height:Int, requestedFmt:hxd.PixelFormat) {
 		var outFmt = requestedFmt;
-		var ifmt:hl.Format.PixelFormat = switch (requestedFmt) {
+		var ifmt:format.hl.Native.PixelFormat = switch (requestedFmt) {
 			case RGBA: RGBA;
 			case BGRA: BGRA;
 			case ARGB: ARGB;
@@ -515,7 +510,7 @@ class Image extends Resource {
 			default:
 		}
 		var dst = haxe.io.Bytes.alloc(width * height * pxsize);
-		if (!hl.Format.decodePNG(src.getData(), src.length, dst.getData(), width, height, width * stride, ifmt, 0))
+		if (!format.hl.Native.decodePNG(src.getData(), src.length, dst.getData(), width, height, width * stride, ifmt, 0))
 			return null;
 		var pix = new hxd.Pixels(width, height, dst, outFmt);
 		return pix;
@@ -634,6 +629,8 @@ class Image extends Resource {
 							pos += size;
 						}
 					}
+				case Ktx2:
+					throw 'Ktx2 loading using heaps resource system not implemented';
 				default:
 					for (layer in 0...tex.layerCount) {
 						for (mip in 0...inf.mipLevels) {
