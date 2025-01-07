@@ -1122,8 +1122,7 @@ class GlDriver extends Driver {
 				tt.internalFmt = GL.R11F_G11F_B10F;
 				tt.pixelFmt = GL.UNSIGNED_INT_10F_11F_11F_REV;
 			case S3TC(n) if (n <= maxCompressedTexturesSupport):
-				if (t.width & 3 != 0 || t.height & 3 != 0)
-					throw "Compressed texture " + t + " has size " + t.width + "x" + t.height + " - must be a multiple of 4";
+				checkMult4(t);
 				switch (n) {
 					case 1: tt.internalFmt = 0x83F1; // COMPRESSED_RGBA_S3TC_DXT1_EXT
 					case 2: tt.internalFmt = 0x83F2; // COMPRESSED_RGBA_S3TC_DXT3_EXT
@@ -1491,16 +1490,17 @@ class GlDriver extends Driver {
 			case RGB10A2, RG11B10UF: new Uint32Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen >> 2);
 			default: new Uint8Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen);
 		}
-		if (t.format.match(S3TC(_))) {
-			if (t.flags.has(IsArray) || t.flags.has(Is3D))
-				gl.compressedTexSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, t.t.internalFmt, buffer);
-			else
-				gl.compressedTexSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, t.t.internalFmt, buffer);
-		} else {
-			if (t.flags.has(IsArray) || t.flags.has(Is3D))
-				gl.texSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, getChannels(t.t), t.t.pixelFmt, buffer);
-			else
-				gl.texSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, getChannels(t.t), t.t.pixelFmt, buffer);
+		switch (t.format) {
+			case S3TC(_), ASTC(_), ETC(_):
+				if (t.flags.has(IsArray) || t.flags.has(Is3D))
+					gl.compressedTexSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, t.t.internalFmt, buffer);
+				else
+					gl.compressedTexSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, t.t.internalFmt, buffer);
+			default:
+				if (t.flags.has(IsArray) || t.flags.has(Is3D))
+					gl.texSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, getChannels(t.t), t.t.pixelFmt, buffer);
+				else
+					gl.texSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, getChannels(t.t), t.t.pixelFmt, buffer);
 		}
 		#else
 		throw "Not implemented";
