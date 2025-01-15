@@ -1085,7 +1085,7 @@ class GlDriver extends Driver {
 			tt.pixelFmt = GL.UNSIGNED_INT_10F_11F_11F_REV;
 		case S3TC(n) if( n <= maxCompressedTexturesSupport ):
 			checkMult4(t);
-						switch( n ) {
+			switch( n ) {
 			case 1: tt.internalFmt = 0x83F1; // COMPRESSED_RGBA_S3TC_DXT1_EXT
 			case 2:	tt.internalFmt = 0x83F2; // COMPRESSED_RGBA_S3TC_DXT3_EXT
 			case 3: tt.internalFmt = 0x83F3; // COMPRESSED_RGBA_S3TC_DXT5_EXT
@@ -1941,7 +1941,7 @@ class GlDriver extends Driver {
 			gl.getExtension("WEBGL_depth_texture");
 		has16Bits = gl.getExtension("EXT_texture_norm16") != null; // 16 bit textures
 	}
-	
+
 	function checkFeature( f : Feature ) {
 		return switch( f ) {
 
