@@ -1490,17 +1490,16 @@ class GlDriver extends Driver {
 			case RGB10A2, RG11B10UF: new Uint32Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen >> 2);
 			default: new Uint8Array(@:privateAccess pixels.bytes.b.buffer, pixels.offset, dataLen);
 		}
-		switch (t.format) {
-			case S3TC(_), ASTC(_), ETC(_):
-				if (t.flags.has(IsArray) || t.flags.has(Is3D))
-					gl.compressedTexSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, t.t.internalFmt, buffer);
-				else
-					gl.compressedTexSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, t.t.internalFmt, buffer);
-			default:
-				if (t.flags.has(IsArray) || t.flags.has(Is3D))
-					gl.texSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, getChannels(t.t), t.t.pixelFmt, buffer);
-				else
-					gl.texSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, getChannels(t.t), t.t.pixelFmt, buffer);
+		if (t.format.match(S3TC(_) | ASTC(_) | ETC(_))) {
+			if (t.flags.has(IsArray) || t.flags.has(Is3D))
+				gl.compressedTexSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, t.t.internalFmt, buffer);
+			else
+				gl.compressedTexSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, t.t.internalFmt, buffer);
+		} else {
+			if (t.flags.has(IsArray) || t.flags.has(Is3D))
+				gl.texSubImage3D(face, mipLevel, 0, 0, side, pixels.width, pixels.height, 1, getChannels(t.t), t.t.pixelFmt, buffer);
+			else
+				gl.texSubImage2D(face, mipLevel, 0, 0, pixels.width, pixels.height, getChannels(t.t), t.t.pixelFmt, buffer);
 		}
 		#else
 		throw "Not implemented";
