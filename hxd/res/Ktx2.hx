@@ -15,11 +15,11 @@ class Ktx2 {
 
 		@return Parsed ktx2 file
 	**/
-	public static function readFile(bytes:haxe.io.BytesInput):Ktx2File {
+	public static function readFile( bytes : haxe.io.BytesInput ) : Ktx2File {
 		final header = readHeader(bytes);
 		final levels = readLevels(bytes, header.levelCount);
 		final dfd = readDfd(bytes);
-		final file:Ktx2File = {
+		final file : Ktx2File = {
 			header: header,
 			levels: levels,
 			dfd: dfd,
@@ -29,18 +29,18 @@ class Ktx2 {
 		return file;
 	}
 
-	public static function readHeader(bytes:haxe.io.BytesInput):KTX2Header {
+	public static function readHeader( bytes : haxe.io.BytesInput) : KTX2Header {
 		final ktx2Id = [
 			// '´', 'K', 'T', 'X', '2', '0', 'ª', '\r', '\n', '\x1A', '\n'
 			0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A,
 		];
 		
-		final matching = ktx2Id.mapi(( i, id) -> id == bytes.readByte());
+		final matching = ktx2Id.mapi((i, id) -> id == bytes.readByte());
 		
-		if(matching.contains(false)) {
+		if( matching.contains(false) ) {
 			throw 'Invalid KTX2 header';
 		}
-		final header:KTX2Header = {
+		final header  :KTX2Header = {
 			vkFormat: bytes.readInt32(),
 			typeSize: bytes.readInt32(),
 			pixelWidth: bytes.readInt32(),
@@ -57,57 +57,57 @@ class Ktx2 {
 			kvdByteLength: bytes.readInt32(),
 			sgdByteOffset: {
 				final val = bytes.read(8).getInt64(0);
-				if(val.high>0) {
+				if( val.high>0 ) {
 					throw BYTE_INDEX_ERROR;
 				}
 				val.low;
 			}, 
 			sgdByteLength: {
 				final val = bytes.read(8).getInt64(0);
-				if(val.high>0) {
+				if( val.high>0 ) {
 					throw BYTE_INDEX_ERROR;
 				}
 				val.low;
 			}
 		}
 
-		if (header.pixelDepth > 0) {
+		if( header.pixelDepth>0 ) {
 			throw 'Failed to parse KTX2 file - Only 2D textures are currently supported.';
 		}
-		if (header.layerCount > 1) {
+		if( header.layerCount>1 ) {
 				throw 'Failed to parse KTX2 file - Array textures are not currently supported.';
 		}
-		if (header.faceCount > 1) {
+		if( header.faceCount>1 ) {
 				throw 'Failed to parse KTX2 file - Cube textures are not currently supported.';
 		}
 		return header;
 	}
 
-	static function readLevels(bytes:haxe.io.BytesInput, levelCount:Int):Array<KTX2Level> {
+	static function readLevels( bytes : haxe.io.BytesInput, levelCount : Int) : Array<KTX2Level> {
 		levelCount = hxd.Math.imax(1, levelCount);
 		final length = levelCount * 3 * (2 * 4);
 		final level = bytes.read(length);
 		final levels:Array<KTX2Level> = [];
 		
-		while (levelCount-- > 0) {
+		while( levelCount-- > 0 ) {
 			levels.push({
 				byteOffset: {
 					final val = level.getInt64(0);
-					if(val.high>0) {
+					if( val.high>0 ) {
 						throw BYTE_INDEX_ERROR;
 					}
 					val.low;
 				},
-				byteLength:{
+				byteLength: {
 					final val = level.getInt64(8);
-					if(val.high>0) {
+					if( val.high>0 ) {
 						throw BYTE_INDEX_ERROR;
 					}
 					val.low;
 				},
 				uncompressedByteLength: {
 					final val = level.getInt64(16);
-					if(val.high>0) {
+					if( val.high>0 ) {
 						throw BYTE_INDEX_ERROR;
 					}
 					val.low;
@@ -117,14 +117,14 @@ class Ktx2 {
 		return levels;
 	}
 
-	static function readDfd(bytes:haxe.io.BytesInput):KTX2DFD {
+	static function readDfd( bytes : haxe.io.BytesInput) : KTX2DFD {
 		final totalSize = bytes.readInt32();
 		final vendorId = bytes.readInt16();
 		final descriptorType = bytes.readInt16();
 		final versionNumber = bytes.readInt16();
 		final descriptorBlockSize = bytes.readInt16();
-		final numSamples = Std.int((descriptorBlockSize-24) / 16);
-		final dfdBlock:KTX2DFD = {
+		final numSamples = Std.int((descriptorBlockSize-24)/16);
+		final dfdBlock : KTX2DFD = {
 			vendorId:vendorId,
 			descriptorType: descriptorType,
 			versionNumber: versionNumber,
@@ -134,10 +134,10 @@ class Ktx2 {
 			transferFunction: bytes.readByte(),
 			flags: bytes.readByte(),
 			texelBlockDimension: {
-				x: bytes.readByte() + 1,
-				y: bytes.readByte() + 1,
-				z: bytes.readByte() + 1,
-				w: bytes.readByte() + 1,
+				x: bytes.readByte()+1,
+				y: bytes.readByte()+1,
+				z: bytes.readByte()+1,
+				w: bytes.readByte()+1,
 			},
 			bytesPlane: [
 				bytes.readByte() /* bytesPlane0 */,
@@ -151,20 +151,20 @@ class Ktx2 {
 			],
 			numSamples: numSamples,
 			samples: [
-				for (i in 0...numSamples) {
+				for( i in 0...numSamples ) {
 					final bitOffset = bytes.readUInt16();
-					final bitLength = bytes.readByte() + 1;
+					final bitLength = bytes.readByte()+1;
 					final channelType = bytes.readByte();
-					final channelFlags =  (channelType & 0xf0) >> 4;
+					final channelFlags =  (channelType & 0xf0)>>4;
 					final samplePosition =  [
 						bytes.readByte() /* samplePosition0 */,
 						bytes.readByte() /* samplePosition1 */,
 						bytes.readByte() /* samplePosition2 */,
 						bytes.readByte() /* samplePosition3 */,
 					];
-					final sampleLower = bytes.readUInt16() + bytes.readUInt16();
-					final sampleUpper = bytes.readUInt16() + bytes.readUInt16();
-					final sample:KTX2Sample = {
+					final sampleLower = bytes.readUInt16()+bytes.readUInt16();
+					final sampleUpper = bytes.readUInt16()+bytes.readUInt16();
+					final sample : KTX2Sample = {
 						bitOffset: bitOffset,
 						bitLength: bitLength,
 						channelType: channelType & 0x0F,
@@ -182,24 +182,24 @@ class Ktx2 {
 }
 
 class Ktx2Decoder {
-	public static var mscTranscoder:Dynamic;
+	public static var mscTranscoder : Dynamic;
 	public static var workerLimit = 4;
 
 	static var _workerNextTaskID = 1;
-	static var _workerSourceURL:String;
-	static var _workerConfig:BasisWorkerConfig;
-	static var _workerPool:Array<WorkerTask> = [];
-	static var _transcoderPending:js.lib.Promise<Dynamic>;
-	static var _transcoderBinary:haxe.io.Bytes;
-	static var _transcoderScript:String;
-	static var _transcoderLoading:js.lib.Promise<{script:String, wasm:haxe.io.Bytes}>;
+	static var _workerSourceURL : String;
+	static var _workerConfig : BasisWorkerConfig;
+	static var _workerPool : Array<WorkerTask> = [];
+	static var _transcoderPending : js.lib.Promise<Dynamic>;
+	static var _transcoderBinary : haxe.io.Bytes;
+	static var _transcoderScript : String;
+	static var _transcoderLoading : js.lib.Promise<{ script : String, wasm : haxe.io.Bytes }>;
 
-	public static function getTexture(bytes:haxe.io.BytesInput, cb:(texture:h3d.mat.Texture) -> Void) {
+	public static function getTexture(bytes : haxe.io.BytesInput, cb : (texture : h3d.mat.Texture) -> Void) {
 		createTexture(bytes, cb);
 	}
 
-	static function detectSupport(fmt:KtxTranscodeTarget) {
-		final driver:h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
+	static function detectSupport(fmt : KtxTranscodeTarget) {
+		final driver : h3d.impl.GlDriver = cast h3d.Engine.getCurrent().driver;
 		return {
 			astcSupported: driver.textureSupport.astc,
 			etc1Supported: driver.textureSupport.etc1,
@@ -211,9 +211,9 @@ class Ktx2Decoder {
 
 	static function getWorker() {
 		return initTranscoder().then(val -> {
-			if (_workerPool.length < workerLimit) {
+			if( _workerPool.length < workerLimit ) {
 				final worker = new js.html.Worker(_workerSourceURL);
-				final workerTask:WorkerTask = {
+				final workerTask : WorkerTask = {
 					worker: worker,
 					callbacks: new haxe.ds.IntMap(),
 					taskCosts: new haxe.ds.IntMap(),
@@ -227,13 +227,13 @@ class Ktx2Decoder {
 	
 				worker.onmessage = e -> {
 					var message = e.data;
-					switch (message.type) {
-						case 'transcode':
-							workerTask.callbacks.get(message.id).resolve(message);
-						case 'error':
-							workerTask.callbacks.get(message.id).reject(message);
-						default:
-							throw 'Ktx2Loader: Unexpected message, "${message.type}"';
+					switch( message.type ) {
+					case 'transcode':
+						workerTask.callbacks.get(message.id).resolve(message);
+					case 'error':
+						workerTask.callbacks.get(message.id).reject(message);
+					default:
+						throw 'Ktx2Loader: Unexpected message, "${message.type}"';
 					}
 				};
 				_workerPool.push(workerTask);
@@ -241,30 +241,30 @@ class Ktx2Decoder {
 				_workerPool.sort((a, b) -> a.taskLoad > b.taskLoad ? -1 : 1);
 			}
 	
-			return _workerPool[_workerPool.length - 1];
+			return _workerPool[_workerPool.length-1];
 		});
 	}
 
-	static function createTexture(buffer:haxe.io.BytesInput, cb:(texture:h3d.mat.Texture) -> Void) {
+	static function createTexture( buffer : haxe.io.BytesInput, cb : (texture:h3d.mat.Texture) -> Void) {
 		final ktx = Ktx2.readFile(buffer);
 
 		final w = ktx.header.pixelWidth;
 		final h = ktx.header.pixelHeight;
 		
 		final transcodeTarget = switch ktx.dfd.colorModel {
-			case hxd.res.Ktx2.DFDModel.ETC1S: 
-				KtxTranscodeTarget.ETC1S({}, {
-					fmt: CompressedFormat.ETC1,
-					alpha: ktx.dfd.hasAlpha(),
-					needsPowerOfTwo: true,
-				});
-			case hxd.res.Ktx2.DFDModel.UASTC:
-				KtxTranscodeTarget.UASTC({}, {
-					fmt: CompressedFormat.ASTC,
-					alpha: ktx.dfd.hasAlpha(),
-					needsPowerOfTwo: true,
-				});
-			default: throw 'Unsupported colorModel in ktx2 file ${ktx.dfd.colorModel}';
+		case hxd.res.Ktx2.DFDModel.ETC1S: 
+			KtxTranscodeTarget.ETC1S({}, {
+				fmt: CompressedFormat.ETC1,
+				alpha: ktx.dfd.hasAlpha(),
+				needsPowerOfTwo: true,
+			});
+		case hxd.res.Ktx2.DFDModel.UASTC:
+			KtxTranscodeTarget.UASTC({}, {
+				fmt: CompressedFormat.ASTC,
+				alpha: ktx.dfd.hasAlpha(),
+				needsPowerOfTwo: true,
+			});
+		default: throw 'Unsupported colorModel in ktx2 file ${ktx.dfd.colorModel}';
 		}
 		_workerConfig = detectSupport(transcodeTarget);
 		getWorker().then(task -> {
@@ -283,15 +283,15 @@ class Ktx2Decoder {
 				worker.postMessage({type: 'transcode', id: taskID, buffer: bytes}, [bytes]);
 			});
 	
-			textureDone.then((message:BasisWorkerMessage)-> {
-				if(message.type == 'error') {
+			textureDone.then(( message : BasisWorkerMessage )-> {
+				if( message.type == 'error' ) {
 					throw 'Unable to decode ktx2 file: ${message.error}';
 				}
 
 				final w = message.data.width;
 				final h = message.data.height;
 				final create = (fmt:hxd.PixelFormat) -> {
-					if(ktx.header.faceCount > 1 || ktx.header.layerCount > 1) {
+					if( ktx.header.faceCount > 1 || ktx.header.layerCount > 1 ) {
 						// TODO: Handle cube texture
 						throw 'Multi texture ktx2 files not supported';
 					}
@@ -328,7 +328,7 @@ class Ktx2Decoder {
 						throw 'Ktx2Loader: No supported format available.';
 				}
 	
-				if (task != null && taskID > 0) {
+				if( task != null && taskID > 0 ) {
 					task.taskLoad -= task.taskCosts.get(taskID);
 					task.callbacks.remove(taskID);
 					task.taskCosts.remove(taskID);
@@ -340,7 +340,7 @@ class Ktx2Decoder {
 	}
 
 	static function initTranscoder() {
-		_transcoderLoading = if (_transcoderLoading == null) {
+		_transcoderLoading = if( _transcoderLoading == null ) {
 			// Load transcoder wrapper.
 			final jsLoader = new hxd.net.BinaryLoader('vendor/basis_transcoder.js');
 			final jsContent = new js.lib.Promise((resolve, reject) -> {
@@ -386,11 +386,11 @@ class Ktx2Decoder {
 }
 
 typedef Ktx2File = {
-	header:KTX2Header,
-	levels:Array<KTX2Level>,
-	dfd:KTX2DFD,
-	data:js.lib.Uint8Array,
-	supercompressionGlobalData:KTX2SupercompressionGlobalData,
+	header : KTX2Header,
+	levels : Array<KTX2Level>,
+	dfd : KTX2DFD,
+	data : js.lib.Uint8Array,
+	supercompressionGlobalData : KTX2SupercompressionGlobalData,
 }
 
 enum abstract SuperCompressionScheme(Int) from Int to Int {
@@ -433,21 +433,21 @@ enum abstract SupercompressionScheme(Int) from Int to Int {
 
 /** @internal */
 @:structInit class KTX2Header {
-	public final vkFormat: Int;
-	public final typeSize: Int;
-	public final pixelWidth: Int;
-	public final pixelHeight: Int;
-	public final pixelDepth: Int;
-	public final layerCount: Int;
-	public final faceCount: Int;
-	public final levelCount: Int;
-	public final supercompressionScheme: Int;
-	public final dfdByteOffset: Int;
-	public final dfdByteLength: Int;
-	public final kvdByteOffset: Int;
-	public final kvdByteLength: Int;
-	public final sgdByteOffset: Int;
-	public final sgdByteLength: Int;
+	public final vkFormat : Int;
+	public final typeSize : Int;
+	public final pixelWidth : Int;
+	public final pixelHeight : Int;
+	public final pixelDepth : Int;
+	public final layerCount : Int;
+	public final faceCount : Int;
+	public final levelCount : Int;
+	public final supercompressionScheme : Int;
+	public final dfdByteOffset : Int;
+	public final dfdByteLength : Int;
+	public final kvdByteOffset : Int;
+	public final kvdByteLength : Int;
+	public final sgdByteOffset : Int;
+	public final sgdByteLength : Int;
 
 	public function needZSTDDecoder() {
 		return supercompressionScheme == SupercompressionScheme.ZStandard;
@@ -460,40 +460,40 @@ typedef KTX2Level = {
 		Byte offset. According to spec this should be 64 bit, but since a lot of byte code in haxe is using regular 32 bit Int for indexing, 
 		supporting files to large to fit in 32bit space is complicated and should not be needed for individual game assets. 
 	**/
-	final byteOffset: Int;
-	final byteLength: Int;
-	final uncompressedByteLength: Int;
+	final byteOffset : Int;
+	final byteLength : Int;
+	final uncompressedByteLength : Int;
 }
 
 typedef KTX2Sample = {
-	final bitOffset: Int;
-	final bitLength: Int;
-	final channelType: Int;
-	final channelFlags: Int;
-	final samplePosition: Array<Int>;
-	final sampleLower: Int;
-	final sampleUpper: Int;
+	final bitOffset : Int;
+	final bitLength : Int;
+	final channelType : Int;
+	final channelFlags : Int;
+	final samplePosition : Array<Int>;
+	final sampleLower : Int;
+	final sampleUpper : Int;
 }
 
 /** @internal */
 @:structInit class KTX2DFD  {
-	public final vendorId: Int;
-	public final descriptorType: Int;
-	public final versionNumber: Int;
-	public final descriptorBlockSize: Int;
-	public final colorModel: Int;
-	public final colorPrimaries: Int;
-	public final transferFunction: Int;
-	public final flags: Int;
-	public final texelBlockDimension: {
-		 x: Int,
-		 y: Int,
-		 z: Int,
-		 w: Int,
+	public final vendorId : Int;
+	public final descriptorType : Int;
+	public final versionNumber : Int;
+	public final descriptorBlockSize : Int;
+	public final colorModel : Int;
+	public final colorPrimaries : Int;
+	public final transferFunction : Int;
+	public final flags : Int;
+	public final texelBlockDimension : {
+		 x : Int,
+		 y : Int,
+		 z : Int,
+		 w : Int,
 	};
-	public final bytesPlane: Array<Int>;
-	public final numSamples: Int;
-	public final samples: Array<KTX2Sample>;
+	public final bytesPlane : Array<Int>;
+	public final numSamples : Int;
+	public final samples : Array<KTX2Sample>;
 
 	public function hasAlpha() {
 		return switch colorModel {
@@ -512,26 +512,26 @@ typedef KTX2Sample = {
 
 /** @internal */
 typedef KTX2ImageDesc = {
-	final imageFlags: Int;
-	final rgbSliceByteOffset: Int;
-	final rgbSliceByteLength: Int;
-	final alphaSliceByteOffset: Int;
-	final alphaSliceByteLength: Int;
+	final imageFlags : Int;
+	final rgbSliceByteOffset : Int;
+	final rgbSliceByteLength : Int;
+	final alphaSliceByteOffset : Int;
+	final alphaSliceByteLength : Int;
 }
 
 /** @internal */
 typedef KTX2SupercompressionGlobalData = {
-	final endpointCount: Int;
-	final selectorCount: Int;
-	final endpointsByteLength: Int;
-	final selectorsByteLength: Int;
-	final tablesByteLength: Int;
-	final extendedByteLength: Int;
-	final imageDescs: Array<KTX2ImageDesc>;
-	final endpointsData: haxe.io.UInt8Array;
-	final selectorsData: haxe.io.UInt8Array;
-	final tablesData: haxe.io.UInt8Array;
-	final extendedData: haxe.io.UInt8Array;
+	final endpointCount : Int;
+	final selectorCount : Int;
+	final endpointsByteLength : Int;
+	final selectorsByteLength : Int;
+	final tablesByteLength : Int;
+	final extendedByteLength : Int;
+	final imageDescs : Array<KTX2ImageDesc>;
+	final endpointsData : haxe.io.UInt8Array;
+	final selectorsData : haxe.io.UInt8Array;
+	final tablesData : haxe.io.UInt8Array;
+	final extendedData : haxe.io.UInt8Array;
 }
 
 @:keep
@@ -615,40 +615,40 @@ class EngineType {
 	/**
 	 * The data of the mipmap level
 	 */
-	public var data: Null<UInt8Array> = null;
+	public var data : Null<UInt8Array> = null;
 
 	/**
 	 * The width of the mipmap level
 	 */
-	public final width: Int;
+	public final width : Int;
 
 	/**
 	 * The height of the mipmap level
 	 */
-	public final height: Int;
+	public final height : Int;
 }
 
 enum KtxTranscodeTarget {
-	ETC1S(options:ETC1SDecoderOptions, caps:Ktx2Caps);
-	UASTC(options:UASTCDecoderOptions, caps:Ktx2Caps);
+	ETC1S(options : ETC1SDecoderOptions, caps : Ktx2Caps);
+	UASTC(options : UASTCDecoderOptions, caps : Ktx2Caps);
 }
 
 @:structInit class KtxTranscodeConfig {
-	public final transcodeFormat:TranscodeTarget;
-	public final engineFormat:Int;
-//	public final basisFormat:EngineType;
+	public final transcodeFormat :TranscodeTarget;
+	public final engineFormat :Int;
 	public final engineType = EngineType.UnsignedByteType;
 	public final roundToMultiple4 = true;
 }
 
 
 @:structInit class Ktx2Caps {
-	public final fmt: CompressedFormat;
+	public final fmt : CompressedFormat;
 
-	public final alpha: Null<Bool> = null;
+	public final alpha : Null<Bool> = null;
 
 	public final needsPowerOfTwo = true;
 }
+
 enum CompressedFormat {
 	ETC2;
 	ETC1;
@@ -691,17 +691,17 @@ enum TranscodeTarget {
 }
 
 typedef WorkerTask = {
-	worker:js.html.Worker,
-	callbacks:haxe.ds.IntMap<{resolve:(value:Dynamic) -> Void, reject:(reason:Dynamic) -> Void}>,
-	taskCosts:haxe.ds.IntMap<Int>,
-	taskLoad:Int,
+	worker : js.html.Worker,
+	callbacks : haxe.ds.IntMap<{ resolve : (value : Dynamic) -> Void, reject : (reason : Dynamic) -> Void }>,
+	taskCosts : haxe.ds.IntMap<Int>,
+	taskLoad : Int,
 }
 
 typedef BasisWorkerConfig = {
-	astcSupported: Bool,
-	etc1Supported: Bool,
-	etc2Supported: Bool,
-	dxtSupported: Bool,
+	astcSupported : Bool,
+	etc1Supported : Bool,
+	etc2Supported : Bool,
+	dxtSupported : Bool,
 }
 
 function basisWorker() {
@@ -983,17 +983,17 @@ function basisWorker() {
 }
 
 @:structInit class BasisWorkerMessage {
-	public final id:String;
+	public final id : String;
 	public final type = 'transcode';
-	public final data:{
-		faces:Array<{mipmaps:Array<js.html.ImageData>, width:Int, height:Int, format:Int, type:Int}>,
-		width:Int,
-		height:Int,
-		hasAlpha:Bool,
-		format:Int,
-		type:Int,
-		dfdFlags:Int,
+	public final data : {
+		faces : Array<{ mipmaps : Array<js.html.ImageData>, width : Int, height : Int, format : Int, type : Int }>,
+		width : Int,
+		height : Int,
+		hasAlpha : Bool,
+		format : Int,
+		type : Int,
+		dfdFlags : Int,
 	};
-	public final error:String = null;
+	public final error : String = null;
 }
 #end
