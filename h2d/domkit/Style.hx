@@ -25,7 +25,7 @@ class Style extends domkit.CssStyle {
 		cssParser = new domkit.CssParser();
 	}
 
-	public function load( r : hxd.res.Resource, watchChanges = true ) {
+	public function load( r : hxd.res.Resource, watchChanges = true, isVariablesDef = false ) {
 		if( watchChanges ) r.watch(function() {
 			#if (sys || nodejs)
 			var fs = Std.downcast(hxd.res.Loader.currentInstance.fs, hxd.fs.LocalFileSystem);
@@ -35,10 +35,15 @@ class Style extends domkit.CssStyle {
 		});
 		resources.push(r);
 		var variables = cssParser.variables.copy();
-		add(cssParser.parseSheet(r.entry.getText(), r.name));
-		cssParser.variables = variables;
+		add(cssParser.parseSheet(loadData(r), r.name));
+		if( !isVariablesDef )
+			cssParser.variables = variables;
 		for( o in currentObjects )
 			o.dom.applyStyle(this);
+	}
+
+	function loadData( r : hxd.res.Resource ) {
+		return r.entry.getText();
 	}
 
 	public function unload( r : hxd.res.Resource ) {
@@ -169,7 +174,7 @@ class Style extends domkit.CssStyle {
 		data.rules = [];
 		sourceFiles = [];
 		for( r in resources ) {
-			var txt = try r.entry.getText() catch( e : Dynamic ) { haxe.Timer.delay(onChange.bind(ntry),100); data.rules = oldRules; return; }
+			var txt = try loadData(r) catch( e : Dynamic ) { haxe.Timer.delay(onChange.bind(ntry),100); data.rules = oldRules; return; }
 			var curFile = {
 				name: r.entry.name,
 				txt: txt,
@@ -520,12 +525,6 @@ class Style extends domkit.CssStyle {
 			var valueLines = [];
 			var files: Array<SourceFile> = [];
 			var lineDigits = 0;
-			var resourcePath = "";
-			if (onInspectHyperlink != null && resources.length > 0 && resources[0].entry is hxd.fs.LocalFileSystem.LocalEntry) {
-				var entry = Std.downcast(resources[0].entry, hxd.fs.LocalFileSystem.LocalEntry);
-				var idx = @:privateAccess entry.file.lastIndexOf("/");
-				if (idx >= 0) resourcePath = @:privateAccess entry.file.substr(0, idx);
-			}
 
 			for( i in 0...dom.currentSet.length ) {
 				if( dom.currentRuleStyles == null || dom.currentRuleStyles[i] == null )
@@ -535,7 +534,7 @@ class Style extends domkit.CssStyle {
 					continue;
 				var r = find(resources, r -> r.name == vs.pos.file);
 				if (r != null) {
-					var txt = r.entry.getText();
+					var txt = loadData(r);
 					files.push({
 						name: vs.pos.file,
 						txt: txt,
@@ -564,15 +563,21 @@ class Style extends domkit.CssStyle {
 					v = vs.value;
 					var f = find(files, f -> f.name == vs.pos.file);
 					if (f != null) {
+						var res = find(resources, r -> r.name == f.name);
+						var entry = Std.downcast(res?.entry, hxd.fs.LocalFileSystem.LocalEntry);
+						var resDir = "";
+						if (entry != null && @:privateAccess entry.file.lastIndexOf("/") > 0) {
+							resDir = @:privateAccess entry.file.substr(0, entry.file.lastIndexOf("/"));
+						}
 						var pos = getPos(f, vs.pos.pmin);
 						var s = "" + pos.line;
 						if (pos.file == null)
 							lStr = '<font color="#707070">$s</font>';
 						else {
 							var posStr = '${pos.file}:$s';
-							if (onInspectHyperlink != null && resourcePath != null) {
+							if (onInspectHyperlink != null && resDir != null) {
 								var colStr = pos.col >= 0 ? (":" + pos.col) : "";
-								posStr = '<a href="$resourcePath/$posStr$colStr">$posStr</a>';
+								posStr = '<a href="$resDir/$posStr$colStr">$posStr</a>';
 							}
 							lStr = '<font color="#707070">$posStr</font>';
 						}

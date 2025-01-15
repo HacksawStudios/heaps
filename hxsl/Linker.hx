@@ -1,5 +1,6 @@
 package hxsl;
 using hxsl.Ast;
+import hxsl.Debug.traceDepth in debug;
 
 private class AllocatedVar {
 	public var id : Int;
@@ -62,14 +63,6 @@ class Linker {
 		this.mode = mode;
 	}
 
-	inline function debug( msg : String, ?pos : haxe.PosInfos ) {
-		#if shader_debug_dump
-		if( Cache.TRACE ) {
-			for( i in 0...debugDepth ) msg = "    " + msg; haxe.Log.trace(msg, pos);
-		}
-		#end
-	}
-
 	function error( msg : String, p : Position ) : Dynamic {
 		return Error.t(msg, p);
 	}
@@ -124,7 +117,8 @@ class Linker {
 				case Name(n): key = n;
 				default:
 				}
-		var v2 = varMap.get(key);
+		var ukey = key.toLowerCase();
+		var v2 = varMap.get(ukey);
 		var vname = v.name;
 		if( v2 != null ) {
 			for( vm in v2.merged )
@@ -137,7 +131,7 @@ class Linker {
 				// allocate a new unique name in the shader if already in use
 				var k = 2;
 				while( true ) {
-					var a = varMap.get(key + k);
+					var a = varMap.get(ukey + k);
 					if( a == null ) break;
 					for( vm in a.merged )
 						if( vm == v )
@@ -146,13 +140,14 @@ class Linker {
 				}
 				if( v.kind == Input ) {
 					// it's not allowed to rename an input var, let's rename existing var instead
-					varMap.remove(key);
-					varMap.set(key + k, v2);
+					varMap.remove(ukey);
+					varMap.set(ukey + k, v2);
 					v2.v.name += k;
 					v2.path += k;
 				} else {
 					vname += k;
 					key += k;
+					ukey += k;
 				}
 			} else {
 				v2.merged.push(v);
@@ -178,7 +173,7 @@ class Linker {
 		a.instanceIndex = curInstance;
 		a.rootShaderName = shaderName;
 		allVars.push(a);
-		varMap.set(key, a);
+		varMap.set(ukey, a);
 		switch( v2.type ) {
 		case TStruct(vl):
 			v2.type = TStruct([for( v in vl ) allocVar(v, p, shaderName, key, a).v]);
