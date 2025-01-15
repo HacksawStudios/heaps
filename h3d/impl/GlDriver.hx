@@ -1111,7 +1111,7 @@ class GlDriver extends Driver {
 			checkMult4(t);
 			switch (n) {
 			case 0: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGB_ETC1;
-			case 1: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGBA_ETC2;			}
+			case 1: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGBA_ETC2;
 			}
 		default:
 			throw "Unsupported texture format "+t.format;
