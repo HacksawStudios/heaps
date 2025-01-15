@@ -1,8 +1,8 @@
 package h3d.impl;
 import h3d.impl.Driver;
+import h3d.mat.Data;
 import h3d.mat.Pass;
 import h3d.mat.Stencil;
-import h3d.mat.Data;
 
 #if (js||hlsdl||usegl)
 
@@ -87,6 +87,15 @@ class GlDriver extends Driver {
 	static var UID = 0;
 	public var gl : GL;
 	public static var ALLOW_WEBGL2 = true;
+
+	public var textureSupport:{
+		astc:Bool,
+		astcHDR:Bool,
+		etc1:Bool,
+		etc2:Bool,
+		dxt:Bool,
+		bptc:Bool
+	};
 	#end
 
 	#if (hlsdl||usegl)
@@ -992,10 +1001,9 @@ class GlDriver extends Driver {
 		case GL.RGB10_A2: GL.RGBA;
 		case GL.RED, GL.R8, GL.R16F, GL.R32F, 0x822A: GL.RED;
 		case GL.RG, GL.RG8, GL.RG16F, GL.RG32F, 0x822C: GL.RG;
-		case GL.RGB16F, GL.RGB32F, 0x8054, 0x8E8F, hxd.PixelFormat.ETC_FORMAT.RGB_ETC1: GL.RGB;
-		case 0x805B, hxd.PixelFormat.DXT_FORMAT.RGBA_DXT1, hxd.PixelFormat.DXT_FORMAT.RGBA_DXT3, hxd.PixelFormat.DXT_FORMAT.RGBA_DXT5,
-			hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4, hxd.PixelFormat.BPTC_FORMAT.RGBA_BPTC: GL.RGBA;
-		default: throw "Invalid format " + t.internalFmt;
+		case GL.RGB16F, GL.RGB32F, 0x8054, hxd.CompressedTextureFormat.BPTC_FORMAT.RGB_BPTC_UNSIGNED, hxd.CompressedTextureFormat.ETC_FORMAT.RGB_ETC1: GL.RGB;
+		case 0x805B, hxd.CompressedTextureFormat.DXT_FORMAT.RGBA_DXT1,hxd.CompressedTextureFormat.DXT_FORMAT.RGBA_DXT3,
+		hxd.CompressedTextureFormat.DXT_FORMAT.RGBA_DXT5,hxd.CompressedTextureFormat.ASTC_FORMAT.RGBA_4x4, hxd.CompressedTextureFormat.BPTC_FORMAT.RGBA_BPTC : GL.RGBA;		default: throw "Invalid format " + t.internalFmt;
 		}
 	}
 
@@ -1096,16 +1104,15 @@ class GlDriver extends Driver {
 		case ASTC(n):
 			checkMult4(t);
 			switch (n) {
-			case 10: tt.internalFmt = hxd.PixelFormat.ASTC_FORMAT.RGBA_4x4;
+			case 10: tt.internalFmt = hxd.CompressedTextureFormat.ASTC_FORMAT.RGBA_4x4;
 			default: throw "Unsupported texture format " + t.format;
 			}
 		case ETC(n):
 			checkMult4(t);
 			switch (n) {
-			case 0: tt.internalFmt = hxd.PixelFormat.ETC_FORMAT.RGB_ETC1;
-			case 1: tt.internalFmt = hxd.PixelFormat.ETC_FORMAT.RGBA_ETC2;
+			case 0: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGB_ETC1;
+			case 1: tt.internalFmt = hxd.CompressedTextureFormat.ETC_FORMAT.RGBA_ETC2;			}
 			}
-
 		default:
 			throw "Unsupported texture format "+t.format;
 		}
